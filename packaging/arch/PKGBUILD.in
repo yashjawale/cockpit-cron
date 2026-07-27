@@ -1,9 +1,9 @@
-pkgname=cockpit-starter-kit
+pkgname=cockpit-cron
 pkgver=VERSION
 pkgrel=1
-pkgdesc='Cockpit Starter Kit Example Module'
+pkgdesc='Cockit Plugin for managing cron jobs'
 arch=('x86_64')
-url='https://github.com/cockpit-project/starter-kit'
+url='https://github.com/yashjawale/cockpit-cron'
 license=(LGPL)
 source=("SOURCE")
 sha256sums=('SKIP')

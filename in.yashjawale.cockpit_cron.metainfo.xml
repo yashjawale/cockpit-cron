@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="addon">
+  <id>in.yashjawale.cockpit-cron</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <name>Cockpit Cron</name>
+  <summary>Cockpit plugin for managing cron jobs</summary>
+  <description>
+    <p>
+        A simple cockpit plugin for managing cron jobs.
+    </p>
+  </description>
+  <extends>org.cockpit_project.cockpit</extends>
+  <launchable type="cockpit-manifest">cockpit-cron</launchable>
+  <url type="homepage">https://github.com/yashjawale/cockpit-cron</url>
+  <url type="bugtracker">https://github.com/yashjawale/cockpit-cron/issues</url>
+  <update_contact>connect_AT_yashjawale.in</update_contact>
+  <developer id="in.yashjawale">
+    <name>Cockpit Project</name>
+  </developer>
+</component>

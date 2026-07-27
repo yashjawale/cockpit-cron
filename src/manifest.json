@@ -3,9 +3,15 @@
         "cockpit": "137"
     },
 
-    "tools": {
+    "menu": {
         "index": {
-            "label": "Starter Kit"
+            "label": "Cron Jobs",
+            "order": 50,
+            "keywords": [
+                {
+                    "matches": ["cron", "automation"]
+                }
+            ]
         }
     }
 }

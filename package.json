@@ -1,9 +1,9 @@
 {
-  "name": "starter-kit",
-  "description": "Scaffolding for a cockpit module",
+  "name": "cockpit-cron",
+  "description": "Cockpit plugin for managing cron jobs",
   "type": "module",
   "main": "index.js",
-  "repository": "git@github.com:cockpit/starter-kit.git",
+  "repository": "git@github.com:yashjawale/cockpit-cron.git",
   "author": "",
   "license": "LGPL-2.1",
   "engines": {
