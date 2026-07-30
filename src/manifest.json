@@ -3,13 +3,14 @@
         "cockpit": "137"
     },
 
-    "menu": {
+    "tools": {
         "index": {
-            "label": "Cron Jobs",
+            "label": "Cron jobs",
             "order": 50,
+            "path": "index.html",
             "keywords": [
                 {
-                    "matches": ["cron", "automation"]
+                    "matches": ["cron", "automation", "schedule"]
                 }
             ]
         }
