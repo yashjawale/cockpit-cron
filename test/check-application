@@ -17,36 +17,30 @@ class TestApplication(testlib.MachineCase):
         m = self.machine
 
         self.login_and_go("/cockpit-cron")
-        # verify expected heading
-        b.wait_text(".pf-v6-c-card__title", "Cockpit Cron")
 
-        # verify expected host name
-        hostname = m.execute("cat /etc/hostname").strip()
-        b.wait_in_text(".pf-v6-c-alert__title", "Running on " + hostname)
+        # verify the system/user level switcher, aligned to the right of the toolbar
+        b.wait_text("#cron-level-system", "System")
+        b.wait_attr_contains("#cron-level-system", "class", "pf-m-selected")
+        b.wait_visible(".pf-v6-c-toolbar__item.pf-m-align-end")
 
-        # change current hostname
-        self.write_file("/etc/hostname", "new-" + hostname)
-        # verify new hostname name
-        b.wait_in_text(".pf-v6-c-alert__title", "Running on new-" + hostname)
+        # add a root crontab and verify it shows up as a system level job
+        m.execute("echo '0 0 * * * /usr/bin/uptime' | crontab -u root -")
+        b.reload()
+        b.wait_text(".pf-v6-c-table", "/usr/bin/uptime")
 
-        # change language to German
-        b.switch_to_top()
-        # the menu and dialog changed several times
-        b.click("#toggle-menu")
-        b.click("button.display-language-menu")
-        b.wait_popup('display-language-modal')
-        b.click("#display-language-modal [data-value='de-de'] button")
-        b.click("#display-language-modal button.pf-m-primary")
-        b.wait_visible("#content")
-        # menu label (from manifest) should be translated
-        b.wait_text("#host-apps a[href='/cockpit-cron']", "Bausatz")
-        # window title should be translated; this is not considered as "visible"
-        self.assertIn("Bausatz", b.call_js_func("ph_text", "head title"))
+        # switch to user level jobs, which are empty for a fresh user
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_text(".pf-v6-c-empty-state__body", "No user cron jobs")
 
-        b.go("/cockpit-cron")
-        b.enter_page("/cockpit-cron")
-        # page label (from js) should be translated
-        b.wait_in_text(".pf-v6-c-alert__title", "Läuft auf")
+        # the filter box is present; without jobs every filter shows the no match state
+        b.set_input_text("#cron-jobs-filter", "nonexistent")
+        b.wait_text(".pf-v6-c-empty-state__body", "No jobs match the filter")
+        b.set_input_text("#cron-jobs-filter", "")
+        b.wait_text(".pf-v6-c-empty-state__body", "No user cron jobs")
+
+        # clean up the root crontab again
+        m.execute("crontab -u root -r || true")
 
 
 if __name__ == '__main__':

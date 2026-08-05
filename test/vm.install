@@ -11,3 +11,10 @@ if systemctl is-active -q firewalld.service; then
     firewall-cmd --add-service=cockpit --permanent
 fi
 systemctl enable cockpit.socket
+
+# cronie provides the crontab command used by the plugin
+if command -v dnf >/dev/null 2>&1; then
+    dnf install -y cronie
+elif command -v apt-get >/dev/null 2>&1; then
+    apt-get update && apt-get install -y cron
+fi

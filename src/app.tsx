@@ -4,34 +4,32 @@
  * Copyright (C) 2017 Red Hat, Inc.
  */
 
-import React, { useEffect, useState } from 'react';
-import { Alert } from "@patternfly/react-core/dist/esm/components/Alert/index.js";
-import { Card, CardBody, CardTitle } from "@patternfly/react-core/dist/esm/components/Card/index.js";
+import React, { useState } from 'react';
+import { Card, CardBody } from "@patternfly/react-core/dist/esm/components/Card";
 import { Page } from '@patternfly/react-core/dist/esm/components/Page';
 
-import cockpit from 'cockpit';
+import { CronJobsTable } from "./components/CronJobsTable";
+import { CronJobsToolbar } from "./components/CronJobsToolbar";
+import type { CronLevel } from "./cron";
 
-const _ = cockpit.gettext;
-
+/**
+ * Top level application component of the Cron jobs module.
+ */
 export const Application = () => {
-    const [hostname, setHostname] = useState(_("Unknown"));
-
-    useEffect(() => {
-        const hostname = cockpit.file('/etc/hostname');
-        hostname.watch(content => setHostname(content?.trim() ?? ""));
-        return hostname.close;
-    }, []);
+    const [level, setLevel] = useState<CronLevel>("system");
+    const [filter, setFilter] = useState("");
 
     return (
         <Page className='pf-m-no-sidebar'>
-
             <Card>
-                <CardTitle>Cockpit Cron</CardTitle>
                 <CardBody>
-                    <Alert
-                    variant="info"
-                    title={ cockpit.format(_("Running on $0"), hostname) }
+                    <CronJobsToolbar
+                        level={level}
+                        onSelectLevel={setLevel}
+                        filter={filter}
+                        onFilterChange={setFilter}
                     />
+                    <CronJobsTable level={level} filter={filter} />
                 </CardBody>
             </Card>
         </Page>
