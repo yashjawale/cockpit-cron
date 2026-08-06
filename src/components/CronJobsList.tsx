@@ -23,15 +23,17 @@ export interface CronJobsListProps {
     level: CronLevel;
     /** free text filter applied to the displayed jobs */
     filter: string;
+    /** a counter that triggers a reload of the jobs when incremented */
+    reload: number;
 }
 
 /**
  * List of cron jobs for a given level.
  *
  * The jobs are read from the system whenever the level changes and rendered
- * as expandable rows with a loading and an empty state.
+ * as rows with a loading and an empty state.
  */
-export const CronJobsList = ({ level, filter }: CronJobsListProps) => {
+export const CronJobsList = ({ level, filter, reload }: CronJobsListProps) => {
     const [jobs, setJobs] = useState<CronJob[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -39,17 +41,24 @@ export const CronJobsList = ({ level, filter }: CronJobsListProps) => {
         let cancelled = false;
 
         setLoading(true);
-        readCronJobs(level).then(result => {
-            if (!cancelled) {
-                setJobs(result);
-                setLoading(false);
-            }
-        });
+        readCronJobs(level)
+                .then(result => {
+                    if (!cancelled) {
+                        setJobs(result);
+                        setLoading(false);
+                    }
+                })
+                .catch(() => {
+                    if (!cancelled) {
+                        setJobs([]);
+                        setLoading(false);
+                    }
+                });
 
         return () => {
             cancelled = true;
         };
-    }, [level]);
+    }, [level, reload]);
 
     const filteredJobs = filter
         ? jobs.filter(job =>

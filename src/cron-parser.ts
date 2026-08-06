@@ -142,6 +142,25 @@ function parseSchedule(tokens: string[]): ParsedSchedule | null {
 }
 
 /**
+ * Check whether a string is a valid cron schedule, either five schedule
+ * fields or a "@period" keyword such as "@daily".
+ *
+ * @param schedule - the schedule expression to validate
+ * @returns true if the schedule is valid
+ */
+export function isValidSchedule(schedule: string): boolean {
+    const tokens = schedule.trim().split(/\s+/);
+    if (tokens.length === 1 && AT_KEYWORD_RE.test(tokens[0]))
+        return true;
+    return tokens.length === 5 &&
+        isValidTimeField(tokens[0], "minute") &&
+        isValidTimeField(tokens[1], "hour") &&
+        isValidTimeField(tokens[2], "day") &&
+        isValidTimeField(tokens[3], "month") &&
+        isValidTimeField(tokens[4], "weekday");
+}
+
+/**
  * Parse the contents of a crontab file into a list of cron jobs.
  *
  * Blank lines, comments that do not look like a job, and environment variable

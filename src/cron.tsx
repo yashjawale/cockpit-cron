@@ -11,46 +11,90 @@ import { parseCrontab, type CronJob, type CronLevel } from "./cron-parser";
 export type { CronJob, CronLevel } from "./cron-parser";
 
 /**
- * Read the cron jobs of the root user via the crontab command.
- *
- * Requires administrative access, as root's crontab can only be read with
- * root privileges.
- *
- * @returns a promise for the list of system cron jobs, empty if root has no
- *     crontab or crontab is not installed
+ * The crontab command to read or write a crontab, including the level
+ * specific arguments and options.
  */
-async function readSystemJobs(): Promise<CronJob[]> {
+interface CrontabCommand {
+    /** arguments for reading or writing the crontab */
+    args: string[];
+    /** options for the spawn command */
+    options?: { superuser?: "require" };
+}
+
+/**
+ * Build the crontab command for reading or writing the crontab of the given
+ * level. Writing reads the crontab contents from stdin, which is indicated
+ * by a trailing "-" argument.
+ *
+ * @param level - which set of crontabs to operate on
+ * @param write - whether to write the crontab instead of reading it
+ */
+function crontabCommand(level: CronLevel, write: boolean): CrontabCommand {
+    if (level === "system") {
+        if (write)
+            return { args: ["crontab", "-u", "root", "-"], options: { superuser: "require" } };
+        return { args: ["crontab", "-l", "-u", "root"], options: { superuser: "require" } };
+    }
+
+    const cmd: CrontabCommand = { args: write ? ["crontab", "-"] : ["crontab", "-l"] };
+    return cmd;
+}
+
+/**
+ * Read the raw contents of the crontab for the given level.
+ *
+ * @param level which set of crontabs to read
+ * @returns a promise for the raw crontab contents, empty if the crontab does
+ *     not exist or crontab is not installed
+ */
+async function readCrontabContent(level: CronLevel): Promise<string> {
+    const { args, options } = crontabCommand(level, false);
     try {
-        const content = await cockpit.spawn(["crontab", "-l", "-u", "root"], { superuser: "require" });
-        return parseCrontab(content, "root crontab");
+        return await cockpit.spawn(args, options);
     } catch {
-        // root has no crontab (or crontab is not installed)
-        return [];
+        // no crontab exists yet (or crontab is not installed)
+        return "";
     }
 }
 
 /**
- * Read the cron jobs of the current user via the crontab command.
+ * Write the given raw contents to the crontab of the given level.
  *
- * @returns a promise for the list of user cron jobs, empty if the user has no
- *     crontab or crontab is not installed
+ * @param level which set of crontabs to write
+ * @param content the full crontab contents to write
  */
-async function readUserJobs(): Promise<CronJob[]> {
-    try {
-        const content = await cockpit.spawn(["crontab", "-l"]);
-        return parseCrontab(content, "user crontab");
-    } catch {
-        // the current user has no crontab (or crontab is not installed)
-        return [];
-    }
+async function writeCrontabContent(level: CronLevel, content: string): Promise<void> {
+    const { args, options } = crontabCommand(level, true);
+    await cockpit.spawn(args, options).input(content);
 }
 
 /**
- * Read all cron jobs for the given level.
+ * Read the cron jobs of the given level.
  *
- * @param level - which set of crontabs to read
- * @returns a promise for the list of found jobs
+ * @param level which set of crontabs to read
+ * @returns a promise for the list of found jobs, empty if the crontab does not
+ *     exist or crontab is not installed
  */
-export function readCronJobs(level: CronLevel): Promise<CronJob[]> {
-    return level === "system" ? readSystemJobs() : readUserJobs();
+export async function readCronJobs(level: CronLevel): Promise<CronJob[]> {
+    const content = await readCrontabContent(level);
+    const file = level === "system" ? "root crontab" : "user crontab";
+    return parseCrontab(content, file);
+}
+
+/**
+ * Add a cron job to the crontab of the given level.
+ *
+ * Appends a new job line to the crontab. Adding system level jobs requires
+ * administrative access.
+ *
+ * @param level which set of crontabs to modify
+ * @param schedule the schedule of the new job, either five fields or a
+ *     "@period" keyword
+ * @param command the command the new job runs
+ */
+export async function addCronJob(level: CronLevel, schedule: string, command: string): Promise<void> {
+    const content = await readCrontabContent(level);
+    const line = `${schedule} ${command}`;
+    const newLine = content ? `\n${line}` : line;
+    await writeCrontabContent(level, content + newLine + "\n");
 }

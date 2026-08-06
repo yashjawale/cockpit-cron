@@ -42,6 +42,43 @@ class TestApplication(testlib.MachineCase):
         # clean up the root crontab again
         m.execute("crontab -u root -r || true")
 
+    def testAddJob(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-cron")
+
+        # switch to the user level, where we can add a job without privileges
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_text(".pf-v6-c-empty-state__body", "No user cron jobs")
+
+        # open the add job dialog
+        b.click("#cron-add-job")
+        b.wait_visible("#cron-command")
+
+        # pick a custom schedule and enter a command
+        b.select_from_dropdown("#cron-schedule", "custom")
+        b.set_input_text("#cron-schedule-custom", "0 4 * * 1")
+        b.set_input_text("#cron-command", "/usr/bin/uptime")
+
+        # the submit button becomes enabled once schedule and command are valid
+        b.wait_attr("#cron-add-submit", "disabled", None)
+        b.click("#cron-add-submit")
+
+        # the new job shows up in the user level list and in the crontab
+        b.wait_in_text(".pf-v6-c-data-list__item", "0 4 * * 1")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # the dialog is closed after adding
+        b.wait_not_present("#cron-command")
+
+        output = m.execute("crontab -l")
+        self.assertIn("0 4 * * 1 /usr/bin/uptime", output)
+
+        # clean up the user crontab again
+        m.execute("crontab -r || true")
+
 
 if __name__ == '__main__':
     testlib.test_main()
