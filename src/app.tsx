@@ -8,7 +8,7 @@ import React, { useState } from 'react';
 import { Card, CardBody } from "@patternfly/react-core/dist/esm/components/Card";
 import { Page } from '@patternfly/react-core/dist/esm/components/Page';
 
-import { CronJobsTable } from "./components/CronJobsTable";
+import { CronJobsList } from "./components/CronJobsList";
 import { CronJobsToolbar } from "./components/CronJobsToolbar";
 import type { CronLevel } from "./cron";
 
@@ -29,7 +29,7 @@ export const Application = () => {
                         filter={filter}
                         onFilterChange={setFilter}
                     />
-                    <CronJobsTable level={level} filter={filter} />
+                    <CronJobsList level={level} filter={filter} />
                 </CardBody>
             </Card>
         </Page>

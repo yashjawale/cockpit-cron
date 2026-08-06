@@ -5,18 +5,20 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { DataList } from "@patternfly/react-core/dist/esm/components/DataList";
+import { EmptyState, EmptyStateBody } from "@patternfly/react-core/dist/esm/components/EmptyState";
 
 import cockpit from 'cockpit';
 
-import { ListingTable, type ListingTableRowProps } from "cockpit-components-table.jsx";
 import { readCronJobs, type CronJob, type CronLevel } from "../cron";
+import { CronJobRow } from "./CronJobRow";
 
 const _ = cockpit.gettext;
 
 /**
- * Props for the {@link CronJobsTable} component.
+ * Props for the {@link CronJobsList} component.
  */
-export interface CronJobsTableProps {
+export interface CronJobsListProps {
     /** which set of cron jobs to display */
     level: CronLevel;
     /** free text filter applied to the displayed jobs */
@@ -24,12 +26,12 @@ export interface CronJobsTableProps {
 }
 
 /**
- * Table of cron jobs for a given level.
+ * List of cron jobs for a given level.
  *
  * The jobs are read from the system whenever the level changes and rendered
- * in a listing table with a loading and an empty state.
+ * as expandable rows with a loading and an empty state.
  */
-export const CronJobsTable = ({ level, filter }: CronJobsTableProps) => {
+export const CronJobsList = ({ level, filter }: CronJobsListProps) => {
     const [jobs, setJobs] = useState<CronJob[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -56,37 +58,23 @@ export const CronJobsTable = ({ level, filter }: CronJobsTableProps) => {
             job.file.toLowerCase().includes(filter.toLowerCase()))
         : jobs;
 
-    const rows: ListingTableRowProps[] = filteredJobs.map(job => ({
-        columns: [
-            {
-                title: job.command
-            },
-            {
-                title: job.schedule
-            }
-        ],
-        props: {
-            key: job.id
-        }
-    }));
-
     const emptyCaption = filter
         ? _("No jobs match the filter")
         : (level === "system" ? _("No system cron jobs") : _("No user cron jobs"));
 
+    if (loading)
+        return <EmptyState><EmptyStateBody>{_("Loading cron jobs...")}</EmptyStateBody></EmptyState>;
+
+    if (filteredJobs.length === 0)
+        return (
+            <EmptyState>
+                <EmptyStateBody><div>{emptyCaption}</div></EmptyStateBody>
+            </EmptyState>
+        );
+
     return (
-        <ListingTable
-            columns={[
-                {
-                    title: _("Job")
-                },
-                {
-                    title: _("Schedule")
-                }
-            ]}
-            rows={rows}
-            loading={loading ? _("Loading cron jobs...") : ""}
-            emptyCaption={emptyCaption}
-        />
+        <DataList aria-label={_("Cron jobs")}>
+            {filteredJobs.map(job => <CronJobRow key={job.id} job={job} />)}
+        </DataList>
     );
 };

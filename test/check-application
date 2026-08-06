@@ -26,7 +26,7 @@ class TestApplication(testlib.MachineCase):
         # add a root crontab and verify it shows up as a system level job
         m.execute("echo '0 0 * * * /usr/bin/uptime' | crontab -u root -")
         b.reload()
-        b.wait_text(".pf-v6-c-table", "/usr/bin/uptime")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
 
         # switch to user level jobs, which are empty for a fresh user
         b.click("#cron-level-user")
