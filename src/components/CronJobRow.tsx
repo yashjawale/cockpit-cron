@@ -4,7 +4,7 @@
  * Copyright (C) 2024 Red Hat, Inc.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dropdown, DropdownItem, DropdownList } from "@patternfly/react-core/dist/esm/components/Dropdown";
 import {
     DataListAction,
@@ -15,6 +15,7 @@ import {
     DataListText,
 } from "@patternfly/react-core/dist/esm/components/DataList";
 import { MenuToggle } from "@patternfly/react-core/dist/esm/components/MenuToggle";
+import { Switch } from "@patternfly/react-core/dist/esm/components/Switch";
 import { EllipsisVIcon } from '@patternfly/react-icons/dist/esm/icons/ellipsis-v-icon';
 
 import cockpit from 'cockpit';
@@ -33,26 +34,48 @@ export interface CronJobRowProps {
     onEdit: (job: CronJob) => void;
     /** callback invoked when the user wants to delete the job */
     onDelete: (job: CronJob) => void;
+    /** callback invoked when the user toggles the enabled state of the job */
+    onToggleEnabled: (job: CronJob, enabled: boolean) => void;
 }
 
 /**
  * A single cron job rendered as a row of a data list.
  *
- * The row shows the job command followed by its schedule, and a kebab menu
- * with edit and delete actions.
+ * The row shows an enable switch, the job title followed by its schedule, and
+ * a kebab menu with edit and delete actions.
  */
-export const CronJobRow = ({ job, onEdit, onDelete }: CronJobRowProps) => {
+export const CronJobRow = ({ job, onEdit, onDelete, onToggleEnabled }: CronJobRowProps) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [flash, setFlash] = useState(false);
+
+    // highlight the row briefly after the enabled state changes
+    useEffect(() => {
+        if (!flash)
+            return;
+        const timer = setTimeout(() => setFlash(false), 4000);
+        return () => clearTimeout(timer);
+    }, [flash]);
 
     return (
-        <DataListItem aria-labelledby={`cron-job-${job.id}`}>
+        <DataListItem className={flash ? "ct-new-item" : ""} aria-labelledby={`cron-job-${job.id}`}>
             <DataListItemRow>
                 <DataListItemCells
                     dataListCells={[
-                        <DataListCell key="command" id={`cron-job-${job.id}`}>
-                            <DataListText>{job.label || job.command}</DataListText>
+                        <DataListCell key="toggle">
+                            <Switch
+                                id={`cron-job-toggle-${job.id}`}
+                                aria-label={_("Enable job")}
+                                isChecked={job.enabled}
+                                onChange={(_event, enabled) => {
+                                    setFlash(true);
+                                    onToggleEnabled(job, enabled);
+                                }}
+                            />
                         </DataListCell>,
-                        <DataListCell key="schedule">{job.schedule}</DataListCell>
+                        <DataListCell key="command" id={`cron-job-${job.id}`}>
+                            <DataListText className={job.enabled ? "" : "cron-job-disabled"}>{job.label || job.command}</DataListText>
+                        </DataListCell>,
+                        <DataListCell key="schedule" className={job.enabled ? "" : "cron-job-disabled"}>{job.schedule}</DataListCell>
                     ]}
                 />
                 <DataListAction

@@ -144,6 +144,28 @@ export async function deleteCronJob(level: CronLevel, job: CronJob): Promise<voi
  * @param command the new command the job runs
  * @param label the new display label, or empty to remove it
  */
+/**
+ * Enable or disable a cron job in the crontab of the given level.
+ *
+ * A disabled job is stored as a commented out line. Modifying system level
+ * jobs requires administrative access.
+ *
+ * @param level which set of crontabs to modify
+ * @param job the job to enable or disable
+ * @param enabled whether the job should be enabled
+ */
+export async function setCronJobEnabled(level: CronLevel, job: CronJob, enabled: boolean): Promise<void> {
+    const content = await readCrontabContent(level);
+    const lines = content.split("\n");
+    const jobIndex = job.line - 1;
+    const line = lines[jobIndex];
+    if (enabled)
+        lines[jobIndex] = line.replace(/^#+\s*/, "");
+    else if (!isCommented(line))
+        lines[jobIndex] = `# ${line}`;
+    await writeCrontabContent(level, lines.join("\n"));
+}
+
 export async function updateCronJob(
     level: CronLevel,
     job: CronJob,

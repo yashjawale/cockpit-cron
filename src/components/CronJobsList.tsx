@@ -10,7 +10,7 @@ import { EmptyState, EmptyStateBody } from "@patternfly/react-core/dist/esm/comp
 
 import cockpit from 'cockpit';
 
-import { readCronJobs, type CronJob, type CronLevel } from "../cron";
+import { readCronJobs, setCronJobEnabled, type CronJob, type CronLevel } from "../cron";
 import { CronJobRow } from "./CronJobRow";
 
 const _ = cockpit.gettext;
@@ -64,6 +64,19 @@ export const CronJobsList = ({ level, filter, reload, onEdit, onDelete }: CronJo
         };
     }, [level, reload]);
 
+    // toggle the enabled state optimistically and persist it in the background
+    const toggleEnabled = (job: CronJob, enabled: boolean) => {
+        setJobs(current => current.map(
+            candidate => candidate.id === job.id ? { ...candidate, enabled } : candidate));
+
+        setCronJobEnabled(level, job, enabled)
+                .catch(() => {
+                    // revert the optimistic update on failure
+                    setJobs(current => current.map(
+                        candidate => candidate.id === job.id ? { ...candidate, enabled: !enabled } : candidate));
+                });
+    };
+
     const filteredJobs = filter
         ? jobs.filter(job =>
             job.command.toLowerCase().includes(filter.toLowerCase()) ||
@@ -88,7 +101,13 @@ export const CronJobsList = ({ level, filter, reload, onEdit, onDelete }: CronJo
     return (
         <DataList aria-label={_("Cron jobs")}>
             {filteredJobs.map(job => (
-                <CronJobRow key={job.id} job={job} onEdit={onEdit} onDelete={onDelete} />
+                <CronJobRow
+                    key={job.id}
+                    job={job}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onToggleEnabled={toggleEnabled}
+                />
             ))}
         </DataList>
     );

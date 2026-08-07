@@ -95,6 +95,16 @@ class TestApplication(testlib.MachineCase):
         b.reload()
         b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
 
+        # the job is enabled by default; disable it via the switch
+        b.click(".pf-v6-c-data-list__item input[type='checkbox']")
+        output = m.execute("crontab -l")
+        self.assertIn("# 0 4 * * 1 /usr/bin/uptime", output)
+
+        # enable it again
+        b.click(".pf-v6-c-data-list__item input[type='checkbox']")
+        output = m.execute("crontab -l")
+        self.assertIn("0 4 * * 1 /usr/bin/uptime", output)
+
         # open the row kebab menu and pick Edit
         b.click('[id="cron-job-menu-user crontab:2"]')
         b.click(".pf-v6-c-menu__item:contains('Edit')")
