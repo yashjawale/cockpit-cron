@@ -57,23 +57,26 @@ class TestApplication(testlib.MachineCase):
         b.click("#cron-add-job")
         b.wait_visible("#cron-command")
 
-        # pick a custom schedule and enter a command
+        # pick a custom schedule and enter a label and command
         b.select_from_dropdown("#cron-schedule", "custom")
         b.set_input_text("#cron-schedule-custom", "0 4 * * 1")
+        b.set_input_text("#cron-label", "Daily uptime check")
         b.set_input_text("#cron-command", "/usr/bin/uptime")
 
         # the submit button becomes enabled once schedule and command are valid
         b.wait_attr("#cron-add-submit", "disabled", None)
         b.click("#cron-add-submit")
 
-        # the new job shows up in the user level list and in the crontab
+        # the new job shows the label in the user level list
+        b.wait_in_text(".pf-v6-c-data-list__item", "Daily uptime check")
         b.wait_in_text(".pf-v6-c-data-list__item", "0 4 * * 1")
-        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
 
         # the dialog is closed after adding
         b.wait_not_present("#cron-command")
 
+        # the crontab stores the label as a comment and the command below it
         output = m.execute("crontab -l")
+        self.assertIn("# @label Daily uptime check", output)
         self.assertIn("0 4 * * 1 /usr/bin/uptime", output)
 
         # clean up the user crontab again
@@ -96,16 +99,18 @@ class TestApplication(testlib.MachineCase):
         b.click('[id="cron-job-menu-user crontab:2"]')
         b.click(".pf-v6-c-menu__item:contains('Edit')")
 
-        # the edit dialog opens pre-filled; change the schedule and command
+        # the edit dialog opens pre-filled; change the label, schedule and command
         b.wait_visible("#cron-command")
         b.wait_val("#cron-command", "/usr/bin/uptime")
+        b.set_input_text("#cron-label", "New label")
         b.set_input_text("#cron-schedule-custom", "0 0 * * *")
         b.set_input_text("#cron-command", "/usr/bin/uptime --new")
         b.click("#cron-add-submit")
 
-        # the edited job is shown and written to the crontab
-        b.wait_in_text(".pf-v6-c-data-list__item", "0 0 * * *")
+        # the edited job shows its label and is written to the crontab
+        b.wait_in_text(".pf-v6-c-data-list__item", "New label")
         output = m.execute("crontab -l")
+        self.assertIn("# @label New label", output)
         self.assertIn("0 0 * * * /usr/bin/uptime --new", output)
 
         # open the kebab menu again and pick Delete

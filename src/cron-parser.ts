@@ -24,8 +24,12 @@ export interface CronJob {
     command: string;
     /** whether the job is enabled (a commented out job is disabled) */
     enabled: boolean;
+    /** display label for the job, read from a "@label" comment above it */
+    label?: string;
     /** one based line number of the job in its crontab file */
     line: number;
+    /** one based line number of the "@label" comment, if the job has one */
+    labelLine?: number;
 }
 
 /** Matches cron keywords such as "@daily" or "@reboot". */
@@ -175,11 +179,21 @@ export function isValidSchedule(schedule: string): boolean {
  */
 export function parseCrontab(content: string, file: string): CronJob[] {
     const jobs: CronJob[] = [];
+    let pendingLabel: string | undefined;
+    let pendingLabelLine = 0;
 
     content.split("\n").forEach((rawLine, index) => {
         let line = rawLine.trim();
         if (!line)
             return;
+
+        // a comment naming the following job, e.g. "# @label backup"
+        const labelMatch = line.match(/^#+\s*@label\s+(.+)$/);
+        if (labelMatch) {
+            pendingLabel = labelMatch[1].trim();
+            pendingLabelLine = index + 1;
+            return;
+        }
 
         let enabled = true;
         if (line.startsWith("#")) {
@@ -208,8 +222,11 @@ export function parseCrontab(content: string, file: string): CronJob[] {
             schedule: parsed.schedule,
             command,
             enabled,
-            line: index + 1
+            line: index + 1,
+            ...(pendingLabel !== undefined ? { label: pendingLabel, labelLine: pendingLabelLine } : {})
         });
+        pendingLabel = undefined;
+        pendingLabelLine = 0;
     });
 
     return jobs;

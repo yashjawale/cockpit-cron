@@ -50,7 +50,7 @@ export const CronJobRow = ({ job, onEdit, onDelete }: CronJobRowProps) => {
                 <DataListItemCells
                     dataListCells={[
                         <DataListCell key="command" id={`cron-job-${job.id}`}>
-                            <DataListText>{job.command}</DataListText>
+                            <DataListText>{job.label || job.command}</DataListText>
                         </DataListCell>,
                         <DataListCell key="schedule">{job.schedule}</DataListCell>
                     ]}

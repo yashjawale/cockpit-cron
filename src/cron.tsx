@@ -92,10 +92,16 @@ export async function readCronJobs(level: CronLevel): Promise<CronJob[]> {
  *     "@period" keyword
  * @param command the command the new job runs
  */
-export async function addCronJob(level: CronLevel, schedule: string, command: string): Promise<void> {
+export async function addCronJob(
+    level: CronLevel,
+    schedule: string,
+    command: string,
+    label?: string
+): Promise<void> {
     const content = await readCrontabContent(level);
-    const line = `${schedule} ${command}`;
-    const newLine = content ? `\n${line}` : line;
+    const jobLine = `${schedule} ${command}`;
+    const block = label ? `# @label ${label}\n${jobLine}` : jobLine;
+    const newLine = content ? `\n${block}` : block;
     await writeCrontabContent(level, content + newLine + "\n");
 }
 
@@ -118,29 +124,50 @@ function isCommented(line: string): boolean {
 export async function deleteCronJob(level: CronLevel, job: CronJob): Promise<void> {
     const content = await readCrontabContent(level);
     const lines = content.split("\n");
+    // remove the job line and any label comment above it
     lines.splice(job.line - 1, 1);
+    if (job.labelLine !== undefined)
+        lines.splice(job.labelLine - 1, 1);
     await writeCrontabContent(level, lines.join("\n"));
 }
 
 /**
  * Update a cron job in the crontab of the given level.
  *
- * Replaces the line the job is found from with a new schedule and command.
- * Modifying system level jobs requires administrative access.
+ * Replaces the line the job is found from with a new schedule, command, and
+ * optional label. Modifying system level jobs requires administrative
+ * access.
  *
  * @param level which set of crontabs to modify
  * @param job the job to update
  * @param schedule the new schedule, either five fields or a "@period" keyword
  * @param command the new command the job runs
+ * @param label the new display label, or empty to remove it
  */
 export async function updateCronJob(
     level: CronLevel,
     job: CronJob,
     schedule: string,
-    command: string
+    command: string,
+    label?: string
 ): Promise<void> {
     const content = await readCrontabContent(level);
     const lines = content.split("\n");
-    lines[job.line - 1] = (isCommented(lines[job.line - 1]) ? "# " : "") + `${schedule} ${command}`;
+    const jobIndex = job.line - 1;
+
+    // drop a previously present label comment, which sits above the job
+    if (job.labelLine !== undefined)
+        lines.splice(job.labelLine - 1, 1);
+    // removing the label above shifts the job line up by one
+    const shiftedJobIndex = job.labelLine !== undefined ? jobIndex - 1 : jobIndex;
+
+    // rewrite the job line, keeping any comment prefix that disables it
+    lines[shiftedJobIndex] = (isCommented(lines[shiftedJobIndex]) ? "# " : "") + `${schedule} ${command}`;
+
+    // insert the new label comment directly above the job
+    if (label && label.trim() !== "") {
+        lines.splice(shiftedJobIndex, 0, `# @label ${label.trim()}`);
+    }
+
     await writeCrontabContent(level, lines.join("\n"));
 }

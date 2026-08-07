@@ -53,12 +53,14 @@ export const DeleteCronJobDialog = ({ level, job, onClose, onDeleted }: DeleteCr
                 });
     };
 
+    const display = job.label || job.command;
+
     return (
         <Modal isOpen position="top" variant="small" onClose={onClose}>
-            <ModalHeader title={cockpit.format(_("Delete cron job \"$0\"?"), job.command)} titleIconVariant="warning" />
+            <ModalHeader title={cockpit.format(_("Delete cron job \"$0\"?"), display)} titleIconVariant="warning" />
             <ModalBody>
                 {error !== null && <Alert variant="danger" isInline title={_("Failed to delete the cron job")} />}
-                <p>{cockpit.format(_("The cron job \"$0\" will be permanently removed."), job.command)}</p>
+                <p>{cockpit.format(_("The cron job \"$0\" will be permanently removed."), display)}</p>
             </ModalBody>
             <ModalFooter>
                 <Button id="cron-delete-submit" variant="danger" isLoading={inProgress} isDisabled={inProgress} onClick={submit}>

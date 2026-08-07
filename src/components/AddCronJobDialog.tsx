@@ -54,6 +54,7 @@ export const AddCronJobDialog = ({ level, job, onClose, onSaved }: AddCronJobDia
         job !== undefined && !(SCHEDULE_PRESETS as readonly string[]).includes(job.schedule));
     const [schedule, setSchedule] = useState<string>(job?.schedule ?? SCHEDULE_PRESETS[1]);
     const [command, setCommand] = useState(job?.command ?? "");
+    const [label, setLabel] = useState(job?.label ?? "");
     const [error, setError] = useState<string | null>(null);
 
     const isEditing = job !== undefined;
@@ -65,8 +66,8 @@ export const AddCronJobDialog = ({ level, job, onClose, onSaved }: AddCronJobDia
             return;
 
         const save = isEditing
-            ? updateCronJob(level, job!, schedule.trim(), command.trim())
-            : addCronJob(level, schedule.trim(), command.trim());
+            ? updateCronJob(level, job!, schedule.trim(), command.trim(), label.trim())
+            : addCronJob(level, schedule.trim(), command.trim(), label.trim());
 
         save
                 .then(onSaved)
@@ -81,6 +82,15 @@ export const AddCronJobDialog = ({ level, job, onClose, onSaved }: AddCronJobDia
             <ModalHeader title={isEditing ? _("Edit cron job") : _("Add cron job")} />
             <ModalBody>
                 <Form isHorizontal onSubmit={e => { e.preventDefault(); submit() }}>
+                    <FormGroup label={_("Label")} fieldId="cron-label">
+                        <TextInput
+                            id="cron-label"
+                            aria-label={_("Label")}
+                            placeholder={_("e.g. Backup")}
+                            value={label}
+                            onChange={(_event, value) => setLabel(value)}
+                        />
+                    </FormGroup>
                     <FormGroup label={_("Schedule")} fieldId="cron-schedule" isRequired>
                         <FormSelect
                             id="cron-schedule"
