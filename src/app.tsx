@@ -35,7 +35,7 @@ export const Application = () => {
                     onAddJob={() => setShowDialog(true)}
                 />
             </PageSection>
-            <PageSection>
+            <PageSection className="cron-jobs-list-section">
                 <CronJobsList
                     level={level}
                     filter={filter}

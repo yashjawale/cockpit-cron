@@ -9,6 +9,17 @@
     padding-block-end: 0;
 }
 
+.cron-jobs-list-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+
+    /* the list and its rows fill the available vertical space */
+    > .pf-v6-c-data-list {
+        flex: 1;
+    }
+}
+
 .cron-custom-schedule {
     margin-top: 0.5rem;
 }
