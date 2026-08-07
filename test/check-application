@@ -79,6 +79,48 @@ class TestApplication(testlib.MachineCase):
         # clean up the user crontab again
         m.execute("crontab -r || true")
 
+    def testEditAndDeleteJob(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-cron")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+
+        # seed a user crontab with a job
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | crontab -")
+        b.reload()
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # open the row kebab menu and pick Edit
+        b.click('[id="cron-job-menu-user crontab:2"]')
+        b.click(".pf-v6-c-menu__item:contains('Edit')")
+
+        # the edit dialog opens pre-filled; change the schedule and command
+        b.wait_visible("#cron-command")
+        b.wait_val("#cron-command", "/usr/bin/uptime")
+        b.set_input_text("#cron-schedule-custom", "0 0 * * *")
+        b.set_input_text("#cron-command", "/usr/bin/uptime --new")
+        b.click("#cron-add-submit")
+
+        # the edited job is shown and written to the crontab
+        b.wait_in_text(".pf-v6-c-data-list__item", "0 0 * * *")
+        output = m.execute("crontab -l")
+        self.assertIn("0 0 * * * /usr/bin/uptime --new", output)
+
+        # open the kebab menu again and pick Delete
+        b.click('[id="cron-job-menu-user crontab:2"]')
+        b.click(".pf-v6-c-menu__item:contains('Delete')")
+        b.wait_visible("#cron-delete-submit")
+        b.click("#cron-delete-submit")
+
+        # the job disappears from the list and the crontab
+        b.wait_in_text(".pf-v6-c-empty-state__body", "No user cron jobs")
+        self.assertNotIn("/usr/bin/uptime", m.execute("crontab -l"))
+
+        # clean up the user crontab again
+        m.execute("crontab -r || true")
+
 
 if __name__ == '__main__':
     testlib.test_main()

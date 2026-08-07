@@ -25,6 +25,10 @@ export interface CronJobsListProps {
     filter: string;
     /** a counter that triggers a reload of the jobs when incremented */
     reload: number;
+    /** callback invoked when the user wants to edit a job */
+    onEdit: (job: CronJob) => void;
+    /** callback invoked when the user wants to delete a job */
+    onDelete: (job: CronJob) => void;
 }
 
 /**
@@ -33,7 +37,7 @@ export interface CronJobsListProps {
  * The jobs are read from the system whenever the level changes and rendered
  * as rows with a loading and an empty state.
  */
-export const CronJobsList = ({ level, filter, reload }: CronJobsListProps) => {
+export const CronJobsList = ({ level, filter, reload, onEdit, onDelete }: CronJobsListProps) => {
     const [jobs, setJobs] = useState<CronJob[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -83,7 +87,9 @@ export const CronJobsList = ({ level, filter, reload }: CronJobsListProps) => {
 
     return (
         <DataList aria-label={_("Cron jobs")}>
-            {filteredJobs.map(job => <CronJobRow key={job.id} job={job} />)}
+            {filteredJobs.map(job => (
+                <CronJobRow key={job.id} job={job} onEdit={onEdit} onDelete={onDelete} />
+            ))}
         </DataList>
     );
 };

@@ -98,3 +98,49 @@ export async function addCronJob(level: CronLevel, schedule: string, command: st
     const newLine = content ? `\n${line}` : line;
     await writeCrontabContent(level, content + newLine + "\n");
 }
+
+/**
+ * Whether a crontab content has been parsed from a leading hash comment.
+ */
+function isCommented(line: string): boolean {
+    return line.trim().startsWith("#");
+}
+
+/**
+ * Delete a cron job from the crontab of the given level.
+ *
+ * Removes the line the job was parsed from. Deleting system level jobs
+ * requires administrative access.
+ *
+ * @param level which set of crontabs to modify
+ * @param job the job to remove
+ */
+export async function deleteCronJob(level: CronLevel, job: CronJob): Promise<void> {
+    const content = await readCrontabContent(level);
+    const lines = content.split("\n");
+    lines.splice(job.line - 1, 1);
+    await writeCrontabContent(level, lines.join("\n"));
+}
+
+/**
+ * Update a cron job in the crontab of the given level.
+ *
+ * Replaces the line the job is found from with a new schedule and command.
+ * Modifying system level jobs requires administrative access.
+ *
+ * @param level which set of crontabs to modify
+ * @param job the job to update
+ * @param schedule the new schedule, either five fields or a "@period" keyword
+ * @param command the new command the job runs
+ */
+export async function updateCronJob(
+    level: CronLevel,
+    job: CronJob,
+    schedule: string,
+    command: string
+): Promise<void> {
+    const content = await readCrontabContent(level);
+    const lines = content.split("\n");
+    lines[job.line - 1] = (isCommented(lines[job.line - 1]) ? "# " : "") + `${schedule} ${command}`;
+    await writeCrontabContent(level, lines.join("\n"));
+}

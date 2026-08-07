@@ -24,6 +24,8 @@ export interface CronJob {
     command: string;
     /** whether the job is enabled (a commented out job is disabled) */
     enabled: boolean;
+    /** one based line number of the job in its crontab file */
+    line: number;
 }
 
 /** Matches cron keywords such as "@daily" or "@reboot". */
@@ -205,7 +207,8 @@ export function parseCrontab(content: string, file: string): CronJob[] {
             file,
             schedule: parsed.schedule,
             command,
-            enabled
+            enabled,
+            line: index + 1
         });
     });
 
