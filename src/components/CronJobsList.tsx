@@ -5,6 +5,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { Card, CardBody } from "@patternfly/react-core/dist/esm/components/Card";
 import { DataList } from "@patternfly/react-core/dist/esm/components/DataList";
 import { EmptyState, EmptyStateBody } from "@patternfly/react-core/dist/esm/components/EmptyState";
 
@@ -88,27 +89,27 @@ export const CronJobsList = ({ level, filter, reload, onEdit, onDelete }: CronJo
         ? _("No jobs match the filter")
         : (level === "system" ? _("No system cron jobs") : _("No user cron jobs"));
 
-    if (loading)
-        return <EmptyState><EmptyStateBody>{_("Loading cron jobs...")}</EmptyStateBody></EmptyState>;
-
-    if (filteredJobs.length === 0)
-        return (
-            <EmptyState>
-                <EmptyStateBody><div>{emptyCaption}</div></EmptyStateBody>
-            </EmptyState>
-        );
-
     return (
-        <DataList aria-label={_("Cron jobs")}>
-            {filteredJobs.map(job => (
-                <CronJobRow
-                    key={job.id}
-                    job={job}
-                    onEdit={onEdit}
-                    onDelete={onDelete}
-                    onToggleEnabled={toggleEnabled}
-                />
-            ))}
-        </DataList>
+        <Card>
+            <CardBody>
+                {loading
+                    ? <EmptyState><EmptyStateBody>{_("Loading cron jobs...")}</EmptyStateBody></EmptyState>
+                    : (filteredJobs.length === 0
+                        ? <EmptyState><EmptyStateBody><div>{emptyCaption}</div></EmptyStateBody></EmptyState>
+                        : (
+                            <DataList aria-label={_("Cron jobs")}>
+                                {filteredJobs.map(job => (
+                                    <CronJobRow
+                                        key={job.id}
+                                        job={job}
+                                        onEdit={onEdit}
+                                        onDelete={onDelete}
+                                        onToggleEnabled={toggleEnabled}
+                                    />
+                                ))}
+                            </DataList>
+                        ))}
+            </CardBody>
+        </Card>
     );
 };

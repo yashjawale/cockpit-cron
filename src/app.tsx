@@ -5,8 +5,7 @@
  */
 
 import React, { useState } from 'react';
-import { Card, CardBody } from "@patternfly/react-core/dist/esm/components/Card";
-import { Page } from '@patternfly/react-core/dist/esm/components/Page';
+import { Page, PageSection } from '@patternfly/react-core/dist/esm/components/Page';
 
 import { AddCronJobDialog } from "./components/AddCronJobDialog";
 import { CronJobsList } from "./components/CronJobsList";
@@ -26,25 +25,25 @@ export const Application = () => {
     const [reload, setReload] = useState(0);
 
     return (
-        <Page className='pf-m-no-sidebar'>
-            <Card>
-                <CardBody>
-                    <CronJobsToolbar
-                        level={level}
-                        onSelectLevel={setLevel}
-                        filter={filter}
-                        onFilterChange={setFilter}
-                        onAddJob={() => setShowDialog(true)}
-                    />
-                    <CronJobsList
-                        level={level}
-                        filter={filter}
-                        reload={reload}
-                        onEdit={setEditJob}
-                        onDelete={setDeleteJob}
-                    />
-                </CardBody>
-            </Card>
+        <Page className='pf-m-no-sidebar' isContentFilled>
+            <PageSection className="cron-jobs-toolbar-section">
+                <CronJobsToolbar
+                    level={level}
+                    onSelectLevel={setLevel}
+                    filter={filter}
+                    onFilterChange={setFilter}
+                    onAddJob={() => setShowDialog(true)}
+                />
+            </PageSection>
+            <PageSection>
+                <CronJobsList
+                    level={level}
+                    filter={filter}
+                    reload={reload}
+                    onEdit={setEditJob}
+                    onDelete={setDeleteJob}
+                />
+            </PageSection>
             {showDialog && (
                 <AddCronJobDialog
                     level={level}
