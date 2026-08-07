@@ -95,6 +95,7 @@ export const AddCronJobDialog = ({ level, job, onClose, onSaved }: AddCronJobDia
                         <FormSelect
                             id="cron-schedule"
                             aria-label={_("Schedule")}
+                            className="cron-monospace"
                             value={customSchedule ? "custom" : schedule}
                             onChange={(_event, value) => {
                                 if (value === "custom") {
@@ -117,6 +118,7 @@ export const AddCronJobDialog = ({ level, job, onClose, onSaved }: AddCronJobDia
                                 <TextInput
                                     id="cron-schedule-custom"
                                     aria-label={_("Custom schedule")}
+                                    className="cron-monospace"
                                     placeholder={_("e.g. 0 4 * * 1")}
                                     value={schedule}
                                     onChange={(_event, value) => setSchedule(value)}

@@ -9,6 +9,16 @@
     margin-top: 0.5rem;
 }
 
+.cron-job-main {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
 .cron-job-disabled {
     opacity: 0.5;
+}
+
+.cron-monospace {
+    font-family: var(--pf-t--global--font--family--mono);
 }

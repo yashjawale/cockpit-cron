@@ -61,21 +61,21 @@ export const CronJobRow = ({ job, onEdit, onDelete, onToggleEnabled }: CronJobRo
             <DataListItemRow>
                 <DataListItemCells
                     dataListCells={[
-                        <DataListCell key="toggle">
-                            <Switch
-                                id={`cron-job-toggle-${job.id}`}
-                                aria-label={_("Enable job")}
-                                isChecked={job.enabled}
-                                onChange={(_event, enabled) => {
-                                    setFlash(true);
-                                    onToggleEnabled(job, enabled);
-                                }}
-                            />
+                        <DataListCell key="job" id={`cron-job-${job.id}`}>
+                            <div className="cron-job-main">
+                                <Switch
+                                    id={`cron-job-toggle-${job.id}`}
+                                    aria-label={_("Enable job")}
+                                    isChecked={job.enabled}
+                                    onChange={(_event, enabled) => {
+                                        setFlash(true);
+                                        onToggleEnabled(job, enabled);
+                                    }}
+                                />
+                                <DataListText className={job.enabled ? "" : "cron-job-disabled"}>{job.label || job.command}</DataListText>
+                            </div>
                         </DataListCell>,
-                        <DataListCell key="command" id={`cron-job-${job.id}`}>
-                            <DataListText className={job.enabled ? "" : "cron-job-disabled"}>{job.label || job.command}</DataListText>
-                        </DataListCell>,
-                        <DataListCell key="schedule" className={job.enabled ? "" : "cron-job-disabled"}>{job.schedule}</DataListCell>
+                        <DataListCell key="schedule" className={`cron-monospace ${job.enabled ? "" : "cron-job-disabled"}`}>{job.schedule}</DataListCell>
                     ]}
                 />
                 <DataListAction
