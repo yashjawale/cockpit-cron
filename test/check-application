@@ -136,6 +136,16 @@ class TestApplication(testlib.MachineCase):
         b.wait_not_present("#cron-command")
         self.assertIn("@weekly /usr/bin/dnf upgrade", m.execute("su admin -c 'crontab -l'"))
 
+        # the @reboot keyword is accepted as a schedule too
+        b.click("#cron-add-job")
+        b.wait_visible("#cron-command")
+        b.select_from_dropdown("#cron-schedule", "@reboot")
+        b.set_input_text("#cron-command", "/usr/bin/touch /tmp/booted")
+        b.click("#cron-add-submit")
+        b.wait_count(".pf-v6-c-data-list__item", 3)
+        b.wait_in_text(".pf-v6-c-data-list__item:contains('@reboot')", "/usr/bin/touch /tmp/booted")
+        self.assertIn("@reboot /usr/bin/touch /tmp/booted", m.execute("su admin -c 'crontab -l'"))
+
         # clean up the user crontab again
         m.execute("su admin -c 'crontab -r' || true")
 
@@ -162,13 +172,11 @@ class TestApplication(testlib.MachineCase):
         # the job is enabled by default; disable it via the switch
         b.click(".pf-v6-c-data-list__item input[type='checkbox']")
         b.wait_attr_contains(".pf-v6-c-data-list__item", "class", "ct-new-item")
-        output = m.execute("su admin -c 'crontab -l'")
-        self.assertIn("# 0 4 * * 1 /usr/bin/uptime", output)
+        b.wait(lambda: "# 0 4 * * 1 /usr/bin/uptime" in m.execute("su admin -c 'crontab -l'"))
 
         # enable it again
         b.click(".pf-v6-c-data-list__item input[type='checkbox']")
-        output = m.execute("su admin -c 'crontab -l'")
-        self.assertIn("0 4 * * 1 /usr/bin/uptime", output)
+        b.wait(lambda: "0 4 * * 1 /usr/bin/uptime" in m.execute("su admin -c 'crontab -l'"))
 
         # open the row kebab menu and pick Edit
         b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
@@ -294,6 +302,155 @@ class TestApplication(testlib.MachineCase):
         # clean up the user crontab again
         m.execute("su admin -c 'crontab -r' || true")
 
+    def testCancelDialogs(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_text(".pf-v6-c-empty-state__body", "No user cron jobs")
+
+        # cancelling the add dialog does not add a job
+        b.click("#cron-add-job")
+        b.wait_visible("#cron-command")
+        b.set_input_text("#cron-command", "/usr/bin/uptime")
+        b.click(".pf-v6-c-modal-box button:contains('Cancel')")
+        b.wait_not_present("#cron-command")
+        b.wait_text(".pf-v6-c-empty-state__body", "No user cron jobs")
+        self.assertNotIn("/usr/bin/uptime", m.execute("su admin -c 'crontab -l'", check=False))
+
+        # seed a job and cancel the edit dialog; the job stays unchanged
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cockpit-cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Edit')")
+        b.wait_visible("#cron-command")
+        b.set_input_text("#cron-command", "/usr/bin/uptime --changed")
+        b.click(".pf-v6-c-modal-box button:contains('Cancel')")
+        b.wait_not_present("#cron-command")
+
+        self.assertIn("0 4 * * 1 /usr/bin/uptime", m.execute("su admin -c 'crontab -l'"))
+        self.assertNotIn("--changed", m.execute("su admin -c 'crontab -l'"))
+
+        # cancelling the delete dialog keeps the job
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Delete')")
+        b.wait_visible("#cron-delete-submit")
+        b.click(".pf-v6-c-modal-box button:contains('Cancel')")
+        b.wait_not_present("#cron-delete-submit")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+        self.assertIn("0 4 * * 1 /usr/bin/uptime", m.execute("su admin -c 'crontab -l'"))
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testParsesRealCrontab(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-cron")
+
+        # seed a realistic crontab with env vars, comments and a non-cron line
+        m.execute("printf 'SHELL=/bin/sh\\nPATH=/sbin:/bin:/usr/sbin:/usr/bin\\n# a comment\\n0 4 * * 1 /usr/bin/uptime\\n# not a schedule\\n' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cockpit-cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+
+        # only the actual job is listed, not env vars or comments
+        b.wait_count(".pf-v6-c-data-list__item", 1)
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testCustomScheduleVariants(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-cron")
+        m.execute("su admin -c 'crontab -r' || true")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+
+        # a schedule using steps and ranges is accepted
+        b.click("#cron-add-job")
+        b.wait_visible("#cron-command")
+        b.select_from_dropdown("#cron-schedule", "custom")
+        b.set_input_text("#cron-schedule-custom", "*/15 * * * 1-5")
+        b.set_input_text("#cron-command", "/usr/bin/uptime")
+        b.wait_attr("#cron-add-submit", "disabled", None)
+        b.click("#cron-add-submit")
+        b.wait_in_text(".pf-v6-c-data-list__item", "*/15 * * * 1-5")
+        self.assertIn("*/15 * * * 1-5 /usr/bin/uptime", m.execute("su admin -c 'crontab -l'"))
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testDisabledRowHighlight(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-cron")
+        m.execute("su admin -c 'crontab -r' || true")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cockpit-cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # toggling off adds the disabled styling to the schedule cell
+        b.click(".pf-v6-c-data-list__item input[type='checkbox']")
+        b.wait_attr_contains(".pf-v6-c-data-list__item-content .pf-v6-c-data-list__cell:last-child", "class", "cron-job-disabled")
+        b.wait(lambda: "# 0 4 * * 1 /usr/bin/uptime" in m.execute("su admin -c 'crontab -l'"))
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testBothLevelsPopulated(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-cron")
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("crontab -u root -r || true")
+
+        # seed one job at each level
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
+        m.execute("echo '0 0 * * * /usr/bin/rootjob' | crontab -u root -")
+        b.reload()
+        b.enter_page("/cockpit-cron")
+        b.wait_visible("#app")
+
+        # system level shows the root job
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/rootjob")
+
+        # user level shows the admin job
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # clean up both crontabs again
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("crontab -u root -r || true")
+
     def testToggleSystemJob(self):
         b = self.browser
         m = self.machine
@@ -313,11 +470,11 @@ class TestApplication(testlib.MachineCase):
         # toggling the switch updates the root crontab
         b.click(".pf-v6-c-data-list__item input[type='checkbox']")
         b.wait_attr_contains(".pf-v6-c-data-list__item", "class", "ct-new-item")
-        self.assertIn("# 0 4 * * 1 /usr/bin/uptime", m.execute("crontab -u root -l"))
+        b.wait(lambda: "# 0 4 * * 1 /usr/bin/uptime" in m.execute("crontab -u root -l"))
 
         # enable it again
         b.click(".pf-v6-c-data-list__item input[type='checkbox']")
-        self.assertIn("0 4 * * 1 /usr/bin/uptime", m.execute("crontab -u root -l"))
+        b.wait(lambda: "0 4 * * 1 /usr/bin/uptime" in m.execute("crontab -u root -l"))
 
         # clean up the root crontab again
         m.execute("crontab -u root -r || true")
