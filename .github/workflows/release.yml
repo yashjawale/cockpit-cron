@@ -1,0 +1,180 @@
+# Create a GitHub upstream release on every push of a version tag (e.g. "123"):
+# builds the source tarball, builds and attaches Debian and RPM packages, and
+# publishes them as release assets. See README.md.
+#
+# Can also be triggered manually (Actions → release → Run workflow) with the
+# "Dry run" input enabled: the same artifacts are built and attached to the
+# workflow run, but nothing is created or uploaded to a GitHub release.
+# Build inputs are passed between jobs as workflow artifacts either way.
+name: release
+on:
+  push:
+    tags:
+      # this is a glob, not a regexp
+      - '[0-9]*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        type: boolean
+        description: "Build the release artifacts but do NOT create or upload to a GitHub release"
+        default: true
+        required: false
+
+env:
+  # true when manually triggered with dry-run checked; false for tag pushes
+  DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/cockpit-project/tasks:latest
+      options: --user root
+    permissions:
+      # create GitHub release (skipped in dry-run)
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gh
+        run: dnf install -y gh
+
+      # https://github.blog/2022-04-12-git-security-vulnerability-announced/
+      - name: Pacify git's permission check
+        run: git config --global --add safe.directory /__w/cockpit-cron/cockpit-cron
+
+      - name: Workaround for https://github.com/actions/checkout/pull/697
+        if: env.DRY_RUN != 'true'
+        run: |
+          TAG_VERSION="$(git describe --tags)"
+          git fetch --force origin ${TAG_VERSION}:refs/tags/${TAG_VERSION}
+
+      - name: Build release
+        run: |
+          make dist
+          make node-cache
+
+      - name: Upload source artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: cockpit-cron-*.tar.xz
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Create a release
+        if: env.DRY_RUN != 'true'
+        run: |
+          set -x
+
+          TAG_VERSION="$(git describe --tags)"
+          git tag -l --format='%(contents:body)' ${TAG_VERSION} > release-note.txt
+
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          gh release create --title ${TAG_VERSION} --notes-file release-note.txt  \
+            ${TAG_VERSION} \
+            ${REPO_NAME}-${TAG_VERSION}.tar.xz \
+            ${REPO_NAME}-node-${TAG_VERSION}.tar.xz
+
+  # Build a Debian binary package from the release tarball and attach it to the
+  # same release. The tarball ships the pre-built dist/ bundle and the debian/
+  # directory, so this job needs no node toolchain.
+  debian:
+    runs-on: ubuntu-latest
+    needs: source
+    permissions:
+      # upload the package to the release (skipped in dry-run)
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential debhelper gettext dpkg-dev xz-utils
+
+      - name: Download source artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+
+      - name: Build Debian package
+        run: |
+          tar -xf cockpit-cron-[0-9]*.tar.xz
+          cd cockpit-cron
+          dpkg-buildpackage -b -us -uc
+
+      - name: Upload Debian package
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian-package
+          path: ./*.deb
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Attach package to the release
+        if: env.DRY_RUN != 'true'
+        run: |
+          TAG_VERSION="$(git describe --tags)"
+          gh release upload "${TAG_VERSION}" ./*.deb --clobber
+
+  # Build an RPM from the release tarball and attach it to the same release.
+  # Built on CentOS Stream, where %rebuild_bundle is not defined, so the
+  # pre-built dist/ shipped in the tarball is used and no node toolchain is
+  # needed. The node cache tarball is still required as spec Source1.
+  rpm:
+    runs-on: ubuntu-latest
+    needs: source
+    container:
+      image: quay.io/centos/centos:stream10
+    permissions:
+      # upload the package to the release (skipped in dry-run)
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: dnf install -y rpm-build make gettext libappstream-glib
+
+      - name: Download source artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+
+      - name: Build RPM
+        run: |
+          mkdir -p ~/rpmbuild/SOURCES ~/rpmbuild/SPECS
+          cp *.tar.xz ~/rpmbuild/SOURCES/
+          tar -xf cockpit-cron-[0-9]*.tar.xz cockpit-cron/cockpit-cron.spec
+          cp cockpit-cron/cockpit-cron.spec ~/rpmbuild/SPECS/
+          cd ~/rpmbuild
+          rpmbuild -bb SPECS/cockpit-cron.spec
+
+      - name: Upload RPM package
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm-package
+          path: ~/rpmbuild/RPMS/noarch/*.rpm
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Attach package to the release
+        if: env.DRY_RUN != 'true'
+        run: |
+          TAG_VERSION="$(git describe --tags)"
+          gh release upload "${TAG_VERSION}" ~/rpmbuild/RPMS/noarch/*.rpm --clobber

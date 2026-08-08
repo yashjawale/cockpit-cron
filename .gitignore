@@ -16,6 +16,8 @@
 /Test*.png
 /*.whl
 /bots
+/deb-build/
+/debian/
 /cockpit-*.spec
 /cockpit-*.tar.xz
 /cockpit-navigator.spec

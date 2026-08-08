@@ -1,0 +1,4 @@
+version=4
+opts="searchmode=plain,filenamemangle=s/.+\/cockpit-cron-@ANY_VERSION@\.tar\.xz/cockpit-cron-$1\.tar\.xz/" \
+https://api.github.com/repos/yashjawale/cockpit-cron/releases \
+https://github.com/yashjawale/cockpit-cron/releases/download/\d[\.\d]*/cockpit-cron-@ANY_VERSION@.tar.xz

@@ -87,6 +87,23 @@ $(SPEC): packaging/$(SPEC).in $(DIST_TEST)
 packaging/arch/PKGBUILD: packaging/arch/PKGBUILD.in
 	sed 's/VERSION/$(VERSION)/; s/SOURCE/$(TARFILE)/' $< > $@
 
+# Debian packaging: assemble the debian/ directory from packaging/debian/ at
+# dist time, baking the current version into the changelog like for the RPM
+# spec. The release tarball therefore carries a ready-to-build Debian source
+# tree (dpkg-buildpackage can be run straight from the extracted tarball).
+DEB_DIR=debian
+
+$(DEB_DIR)/changelog: packaging/debian/changelog.in
+	mkdir -p $(DEB_DIR)
+	sed 's/%{VERSION}/$(VERSION)/; s/%{DATE}/$(shell date -R)/' $< > $@
+
+$(DEB_DIR)/rules: packaging/debian/rules packaging/debian/control packaging/debian/copyright packaging/debian/source/format packaging/debian/watch packaging/debian/upstream/metadata $(DEB_DIR)/changelog
+	mkdir -p $(DEB_DIR)/source $(DEB_DIR)/upstream
+	cp packaging/debian/control packaging/debian/rules packaging/debian/copyright packaging/debian/watch $(DEB_DIR)/
+	cp packaging/debian/source/format $(DEB_DIR)/source/format
+	cp packaging/debian/upstream/metadata $(DEB_DIR)/upstream/metadata
+	chmod +x $(DEB_DIR)/rules
+
 $(DIST_TEST): $(NODE_MODULES_TEST) $(COCKPIT_REPO_STAMP) $(shell find src/ -type f) package.json build.js
 	NODE_ENV=$(NODE_ENV) ./build.js
 
@@ -96,6 +113,7 @@ watch: $(NODE_MODULES_TEST) $(COCKPIT_REPO_STAMP)
 clean:
 	rm -rf dist/
 	rm -f $(SPEC) packaging/arch/PKGBUILD
+	rm -rf $(DEB_DIR) deb-build
 	rm -f po/LINGUAS
 	rm -f metafile.json runtime-npm-modules.txt
 
@@ -128,12 +146,12 @@ dist: $(TARFILE)
 # pre-built dist/ (so it's not necessary) and ship package-lock.json (so that
 # node_modules/ can be reconstructed if necessary)
 $(TARFILE): export NODE_ENV=production
-$(TARFILE): $(DIST_TEST) $(SPEC) packaging/arch/PKGBUILD
+$(TARFILE): $(DIST_TEST) $(SPEC) packaging/arch/PKGBUILD $(DEB_DIR)/rules
 	if type appstream-util >/dev/null 2>&1; then appstream-util validate-relax --nonet *.metainfo.xml; fi
 	tar --xz $(TAR_ARGS) -cf $(TARFILE) --transform 's,^,$(RPM_NAME)/,' \
 		--exclude packaging/$(SPEC).in --exclude node_modules \
 		$$(git ls-files) $(COCKPIT_REPO_FILES) $(NODE_MODULES_TEST) $(DIST_TEST) \
-		$(SPEC) packaging/arch/PKGBUILD dist/
+		$(SPEC) packaging/arch/PKGBUILD $(DEB_DIR) dist/
 
 $(NODE_CACHE): $(NODE_MODULES_TEST)
 	tools/node-modules runtime-tar $(NODE_CACHE)
