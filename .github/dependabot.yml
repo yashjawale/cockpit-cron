@@ -46,6 +46,10 @@ updates:
       - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
 
+      # eslint-config-standard@17 requires eslint-plugin-promise 6
+      - dependency-name: "eslint-plugin-promise"
+        versions: [">=7.0.0"]
+
   - package-ecosystem: "github-actions"
     directory: "/"
     open-pull-requests-limit: 3
