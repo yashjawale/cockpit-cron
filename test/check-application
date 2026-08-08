@@ -16,7 +16,7 @@ class TestApplication(testlib.MachineCase):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-cron")
+        self.login_and_go("/cron")
 
         # verify the system/user level switcher, aligned to the right of the toolbar
         b.wait_text("#cron-level-system", "System")
@@ -26,7 +26,7 @@ class TestApplication(testlib.MachineCase):
         # add a root crontab and verify it shows up as a system level job
         m.execute("echo '0 0 * * * /usr/bin/uptime' | crontab -u root -")
         b.reload()
-        b.enter_page("/cockpit-cron")
+        b.enter_page("/cron")
         b.wait_visible("#app")
         b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
 
@@ -51,7 +51,7 @@ class TestApplication(testlib.MachineCase):
         # ensure a clean user crontab, also when a previous test run failed
         m.execute("su admin -c 'crontab -r' || true")
 
-        self.login_and_go("/cockpit-cron")
+        self.login_and_go("/cron")
 
         # switch to the user level, where we can add a job without privileges
         b.click("#cron-level-user")
@@ -103,7 +103,7 @@ class TestApplication(testlib.MachineCase):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-cron")
+        self.login_and_go("/cron")
 
         # ensure a clean user crontab, also when a previous test run failed
         m.execute("su admin -c 'crontab -r' || true")
@@ -153,7 +153,7 @@ class TestApplication(testlib.MachineCase):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-cron")
+        self.login_and_go("/cron")
 
         # ensure a clean user crontab, also when a previous test run failed
         m.execute("su admin -c 'crontab -r' || true")
@@ -161,7 +161,7 @@ class TestApplication(testlib.MachineCase):
         # seed a user crontab with a job
         m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
         b.reload()
-        b.enter_page("/cockpit-cron")
+        b.enter_page("/cron")
         b.wait_visible("#app")
 
         # switch to the user level, where the seeded job lives
@@ -217,7 +217,7 @@ class TestApplication(testlib.MachineCase):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-cron")
+        self.login_and_go("/cron")
 
         # ensure a clean root crontab, also when a previous test run failed
         m.execute("crontab -u root -r || true")
@@ -240,7 +240,7 @@ class TestApplication(testlib.MachineCase):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-cron")
+        self.login_and_go("/cron")
 
         # ensure a clean user crontab, also when a previous test run failed
         m.execute("su admin -c 'crontab -r' || true")
@@ -248,7 +248,7 @@ class TestApplication(testlib.MachineCase):
         # seed a disabled user job with a label
         m.execute("printf '# @label Old label\\n# 0 4 * * 1 /usr/bin/uptime\\n' | su admin -c 'crontab -'")
         b.reload()
-        b.enter_page("/cockpit-cron")
+        b.enter_page("/cron")
         b.wait_visible("#app")
 
         # switch to the user level, where the seeded job lives
@@ -277,7 +277,7 @@ class TestApplication(testlib.MachineCase):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-cron")
+        self.login_and_go("/cron")
 
         # ensure a clean user crontab, also when a previous test run failed
         m.execute("su admin -c 'crontab -r' || true")
@@ -285,7 +285,7 @@ class TestApplication(testlib.MachineCase):
         # seed two user jobs with different commands
         m.execute("printf '0 4 * * * /usr/bin/uptime\\n0 0 * * 1 /usr/bin/dnf upgrade\\n' | su admin -c 'crontab -'")
         b.reload()
-        b.enter_page("/cockpit-cron")
+        b.enter_page("/cron")
         b.wait_visible("#app")
 
         b.click("#cron-level-user")
@@ -308,7 +308,7 @@ class TestApplication(testlib.MachineCase):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-cron")
+        self.login_and_go("/cron")
 
         # ensure a clean user crontab, also when a previous test run failed
         m.execute("su admin -c 'crontab -r' || true")
@@ -328,7 +328,7 @@ class TestApplication(testlib.MachineCase):
         # seed a job and cancel the edit dialog; the job stays unchanged
         m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
         b.reload()
-        b.enter_page("/cockpit-cron")
+        b.enter_page("/cron")
         b.wait_visible("#app")
         b.click("#cron-level-user")
         b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
@@ -362,12 +362,12 @@ class TestApplication(testlib.MachineCase):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-cron")
+        self.login_and_go("/cron")
 
         # seed a realistic crontab with env vars, comments and a non-cron line
         m.execute("printf 'SHELL=/bin/sh\\nPATH=/sbin:/bin:/usr/sbin:/usr/bin\\n# a comment\\n0 4 * * 1 /usr/bin/uptime\\n# not a schedule\\n' | su admin -c 'crontab -'")
         b.reload()
-        b.enter_page("/cockpit-cron")
+        b.enter_page("/cron")
         b.wait_visible("#app")
         b.click("#cron-level-user")
         b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
@@ -383,7 +383,7 @@ class TestApplication(testlib.MachineCase):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-cron")
+        self.login_and_go("/cron")
         m.execute("su admin -c 'crontab -r' || true")
         b.click("#cron-level-user")
         b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
@@ -406,13 +406,13 @@ class TestApplication(testlib.MachineCase):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-cron")
+        self.login_and_go("/cron")
         m.execute("su admin -c 'crontab -r' || true")
         b.click("#cron-level-user")
         b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
         m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
         b.reload()
-        b.enter_page("/cockpit-cron")
+        b.enter_page("/cron")
         b.wait_visible("#app")
         b.click("#cron-level-user")
         b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
@@ -430,7 +430,7 @@ class TestApplication(testlib.MachineCase):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-cron")
+        self.login_and_go("/cron")
         m.execute("su admin -c 'crontab -r' || true")
         m.execute("crontab -u root -r || true")
 
@@ -438,7 +438,7 @@ class TestApplication(testlib.MachineCase):
         m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
         m.execute("echo '0 0 * * * /usr/bin/rootjob' | crontab -u root -")
         b.reload()
-        b.enter_page("/cockpit-cron")
+        b.enter_page("/cron")
         b.wait_visible("#app")
 
         # system level shows the root job
@@ -457,7 +457,7 @@ class TestApplication(testlib.MachineCase):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-cron")
+        self.login_and_go("/cron")
 
         # ensure a clean root crontab, also when a previous test run failed
         m.execute("crontab -u root -r || true")
@@ -465,7 +465,7 @@ class TestApplication(testlib.MachineCase):
         # seed a root crontab with a job
         m.execute("echo '0 4 * * 1 /usr/bin/uptime' | crontab -u root -")
         b.reload()
-        b.enter_page("/cockpit-cron")
+        b.enter_page("/cron")
         b.wait_visible("#app")
         b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
 
