@@ -204,9 +204,11 @@ class TestApplication(testlib.MachineCase):
         b.wait_visible("#cron-delete-submit")
         b.click("#cron-delete-submit")
 
-        # the job disappears from the list and the crontab
+        # the job disappears from the list and the crontab, along with its label
         b.wait_text(".pf-v6-c-empty-state__body", "No user cron jobs")
-        self.assertNotIn("/usr/bin/uptime", m.execute("su admin -c 'crontab -l'"))
+        output = m.execute("su admin -c 'crontab -l'", check=False)
+        self.assertNotIn("/usr/bin/uptime", output)
+        self.assertNotIn("# @label New label", output)
 
         # clean up the user crontab again
         m.execute("su admin -c 'crontab -r' || true")
