@@ -19,7 +19,6 @@
 /deb-build/
 /debian/
 /cockpit-*.spec
-/cockpit-*.tar.gz
 /cockpit-*.tar.xz
 /cockpit-navigator.spec
 /dist/

@@ -12,15 +12,12 @@ srpm_build_deps:
   - nodejs-npm
 
 actions:
-  # make dist creates the source tarball and the generated spec; make node-cache
-  # creates the node_modules tarball that the spec references as Source1
   post-upstream-clone:
-    - make node-cache dist
-
-  fix-spec-file:
-    # our locally built tarballs are not on the upstream releases page, point to the local files
-    sed -i 's|^\(Source[0-9]*:\s*\).*\/|\1|' cockpit-cron.spec
-
+    - make cockpit-cron.spec
+    # replace Source1 manually, as create-archive: can't handle multiple tarballs
+    - make node-cache
+    - sh -c 'sed -i "/^Source1:/ s/https:.*/$(ls *-node*.tar.xz)/" cockpit-*.spec'
+  create-archive: make dist
   # cockpit-cron.git has no release tags; your project can drop this once you have a release
   get-current-version: make print-version
 
