@@ -12,9 +12,12 @@ if systemctl is-active -q firewalld.service; then
 fi
 systemctl enable cockpit.socket
 
-# cronie provides the crontab command used by the plugin
-if command -v dnf >/dev/null 2>&1; then
-    dnf install -y cronie
-elif command -v apt-get >/dev/null 2>&1; then
-    apt-get update && apt-get install -y cron
+# cronie provides the crontab command used by the plugin; the base VM image
+# already ships it, only install it when it is missing
+if ! command -v crontab >/dev/null 2>&1; then
+    if command -v dnf >/dev/null 2>&1; then
+        dnf install -y cronie
+    elif command -v apt-get >/dev/null 2>&1; then
+        apt-get update && apt-get install -y cron
+    fi
 fi

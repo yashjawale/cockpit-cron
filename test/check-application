@@ -21,11 +21,13 @@ class TestApplication(testlib.MachineCase):
         # verify the system/user level switcher, aligned to the right of the toolbar
         b.wait_text("#cron-level-system", "System")
         b.wait_attr_contains("#cron-level-system", "class", "pf-m-selected")
-        b.wait_visible(".pf-v6-c-toolbar__item.pf-m-align-end")
+        b.wait_visible(".pf-v6-c-toolbar__group.pf-m-align-end")
 
         # add a root crontab and verify it shows up as a system level job
         m.execute("echo '0 0 * * * /usr/bin/uptime' | crontab -u root -")
         b.reload()
+        b.enter_page("/cockpit-cron")
+        b.wait_visible("#app")
         b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
 
         # switch to user level jobs, which are empty for a fresh user
@@ -57,7 +59,10 @@ class TestApplication(testlib.MachineCase):
         b.click("#cron-add-job")
         b.wait_visible("#cron-command")
 
-        # pick a custom schedule and enter a label and command
+        # while the command is empty and no schedule is custom, the submit is disabled
+        b.wait_attr("#cron-add-submit", "disabled", "")
+
+        # pick a custom schedule and enter a label, schedule and command
         b.select_from_dropdown("#cron-schedule", "custom")
         b.set_input_text("#cron-schedule-custom", "0 4 * * 1")
         b.set_input_text("#cron-label", "Daily uptime check")
@@ -67,46 +72,81 @@ class TestApplication(testlib.MachineCase):
         b.wait_attr("#cron-add-submit", "disabled", None)
         b.click("#cron-add-submit")
 
-        # the new job shows the label in the user level list
+        # the new job shows the label and the schedule in the user level list;
+        # the schedule cell uses a monospace font
         b.wait_in_text(".pf-v6-c-data-list__item", "Daily uptime check")
         b.wait_in_text(".pf-v6-c-data-list__item", "0 4 * * 1")
+        self.assertIn("cron-monospace", b.attr(".pf-v6-c-data-list__item-content .pf-v6-c-data-list__cell:last-child", "class"))
 
         # the dialog is closed after adding
         b.wait_not_present("#cron-command")
 
         # the crontab stores the label as a comment and the command below it
-        output = m.execute("crontab -l")
+        output = m.execute("su admin -c 'crontab -l'")
         self.assertIn("# @label Daily uptime check", output)
         self.assertIn("0 4 * * 1 /usr/bin/uptime", output)
 
-        # clean up the user crontab again
-        m.execute("crontab -r || true")
+        # the add button is still shown and the toggle is enabled
+        b.wait_visible("#cron-add-job")
 
-    def testEditAndDeleteJob(self):
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testAddJobWithPresetSchedule(self):
         b = self.browser
         m = self.machine
 
         self.login_and_go("/cockpit-cron")
         b.click("#cron-level-user")
         b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_text(".pf-v6-c-empty-state__body", "No user cron jobs")
+
+        # add a job using one of the schedule presets instead of a custom schedule
+        b.click("#cron-add-job")
+        b.wait_visible("#cron-command")
+        b.select_from_dropdown("#cron-schedule", "@daily")
+        b.set_input_text("#cron-command", "/usr/bin/uptime")
+        b.click("#cron-add-submit")
+
+        # the job shows the keyword schedule and the crontab stores it
+        b.wait_in_text(".pf-v6-c-data-list__item", "@daily")
+        b.wait_not_present("#cron-command")
+        self.assertIn("@daily /usr/bin/uptime", m.execute("su admin -c 'crontab -l'"))
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testEditAndDeleteJob(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-cron")
 
         # seed a user crontab with a job
-        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | crontab -")
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
         b.reload()
+        b.enter_page("/cockpit-cron")
+        b.wait_visible("#app")
+
+        # switch to the user level, where the seeded job lives
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
         b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
 
         # the job is enabled by default; disable it via the switch
         b.click(".pf-v6-c-data-list__item input[type='checkbox']")
-        output = m.execute("crontab -l")
+        b.wait_attr_contains(".pf-v6-c-data-list__item", "class", "ct-new-item")
+        output = m.execute("su admin -c 'crontab -l'")
         self.assertIn("# 0 4 * * 1 /usr/bin/uptime", output)
 
         # enable it again
         b.click(".pf-v6-c-data-list__item input[type='checkbox']")
-        output = m.execute("crontab -l")
+        output = m.execute("su admin -c 'crontab -l'")
         self.assertIn("0 4 * * 1 /usr/bin/uptime", output)
 
         # open the row kebab menu and pick Edit
-        b.click('[id="cron-job-menu-user crontab:2"]')
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
         b.click(".pf-v6-c-menu__item:contains('Edit')")
 
         # the edit dialog opens pre-filled; change the label, schedule and command
@@ -119,22 +159,48 @@ class TestApplication(testlib.MachineCase):
 
         # the edited job shows its label and is written to the crontab
         b.wait_in_text(".pf-v6-c-data-list__item", "New label")
-        output = m.execute("crontab -l")
+        output = m.execute("su admin -c 'crontab -l'")
         self.assertIn("# @label New label", output)
         self.assertIn("0 0 * * * /usr/bin/uptime --new", output)
 
         # open the kebab menu again and pick Delete
-        b.click('[id="cron-job-menu-user crontab:2"]')
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
         b.click(".pf-v6-c-menu__item:contains('Delete')")
         b.wait_visible("#cron-delete-submit")
         b.click("#cron-delete-submit")
 
         # the job disappears from the list and the crontab
-        b.wait_in_text(".pf-v6-c-empty-state__body", "No user cron jobs")
-        self.assertNotIn("/usr/bin/uptime", m.execute("crontab -l"))
+        b.wait_text(".pf-v6-c-empty-state__body", "No user cron jobs")
+        self.assertNotIn("/usr/bin/uptime", m.execute("su admin -c 'crontab -l'"))
 
         # clean up the user crontab again
-        m.execute("crontab -r || true")
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testToggleSystemJob(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-cron")
+
+        # seed a root crontab with a job
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | crontab -u root -")
+        b.reload()
+        b.enter_page("/cockpit-cron")
+        b.wait_visible("#app")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # toggling the switch updates the root crontab
+        b.click(".pf-v6-c-data-list__item input[type='checkbox']")
+        b.wait_attr_contains(".pf-v6-c-data-list__item", "class", "ct-new-item")
+        self.assertIn("# 0 4 * * 1 /usr/bin/uptime", m.execute("crontab -u root -l"))
+
+        # enable it again
+        b.click(".pf-v6-c-data-list__item input[type='checkbox']")
+        self.assertIn("0 4 * * 1 /usr/bin/uptime", m.execute("crontab -u root -l"))
+
+        # clean up the root crontab again
+        m.execute("crontab -u root -r || true")
 
 
 if __name__ == '__main__':
