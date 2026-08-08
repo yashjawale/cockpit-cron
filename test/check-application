@@ -48,6 +48,9 @@ class TestApplication(testlib.MachineCase):
         b = self.browser
         m = self.machine
 
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+
         self.login_and_go("/cockpit-cron")
 
         # switch to the user level, where we can add a job without privileges
@@ -62,11 +65,15 @@ class TestApplication(testlib.MachineCase):
         # while the command is empty and no schedule is custom, the submit is disabled
         b.wait_attr("#cron-add-submit", "disabled", "")
 
-        # pick a custom schedule and enter a label, schedule and command
+        # pick a custom schedule and enter an invalid one; the submit stays disabled
         b.select_from_dropdown("#cron-schedule", "custom")
+        b.set_input_text("#cron-schedule-custom", "99 99 * * *")
+        b.set_input_text("#cron-command", "/usr/bin/uptime")
+        b.wait_attr("#cron-add-submit", "disabled", "")
+
+        # fix the schedule and enter a label and command
         b.set_input_text("#cron-schedule-custom", "0 4 * * 1")
         b.set_input_text("#cron-label", "Daily uptime check")
-        b.set_input_text("#cron-command", "/usr/bin/uptime")
 
         # the submit button becomes enabled once schedule and command are valid
         b.wait_attr("#cron-add-submit", "disabled", None)
@@ -97,6 +104,10 @@ class TestApplication(testlib.MachineCase):
         m = self.machine
 
         self.login_and_go("/cockpit-cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+
         b.click("#cron-level-user")
         b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
         b.wait_text(".pf-v6-c-empty-state__body", "No user cron jobs")
@@ -113,6 +124,18 @@ class TestApplication(testlib.MachineCase):
         b.wait_not_present("#cron-command")
         self.assertIn("@daily /usr/bin/uptime", m.execute("su admin -c 'crontab -l'"))
 
+        # another preset keyword works too
+        b.click("#cron-add-job")
+        b.wait_visible("#cron-command")
+        b.select_from_dropdown("#cron-schedule", "@weekly")
+        b.set_input_text("#cron-command", "/usr/bin/dnf upgrade")
+        b.click("#cron-add-submit")
+
+        b.wait_count(".pf-v6-c-data-list__item", 2)
+        b.wait_in_text(".pf-v6-c-data-list__item:contains('@weekly')", "/usr/bin/dnf upgrade")
+        b.wait_not_present("#cron-command")
+        self.assertIn("@weekly /usr/bin/dnf upgrade", m.execute("su admin -c 'crontab -l'"))
+
         # clean up the user crontab again
         m.execute("su admin -c 'crontab -r' || true")
 
@@ -121,6 +144,9 @@ class TestApplication(testlib.MachineCase):
         m = self.machine
 
         self.login_and_go("/cockpit-cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
 
         # seed a user crontab with a job
         m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
@@ -177,11 +203,105 @@ class TestApplication(testlib.MachineCase):
         # clean up the user crontab again
         m.execute("su admin -c 'crontab -r' || true")
 
+    def testAddSystemJob(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-cron")
+
+        # ensure a clean root crontab, also when a previous test run failed
+        m.execute("crontab -u root -r || true")
+
+        # adding a job at the system level writes to the root crontab
+        b.click("#cron-add-job")
+        b.wait_visible("#cron-command")
+        b.select_from_dropdown("#cron-schedule", "custom")
+        b.set_input_text("#cron-schedule-custom", "0 6 * * 2")
+        b.set_input_text("#cron-command", "/usr/bin/uptime --system")
+        b.click("#cron-add-submit")
+
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime --system")
+        self.assertIn("0 6 * * 2 /usr/bin/uptime --system", m.execute("crontab -u root -l"))
+
+        # clean up the root crontab again
+        m.execute("crontab -u root -r || true")
+
+    def testEditRemovesLabelAndKeepsDisabled(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+
+        # seed a disabled user job with a label
+        m.execute("printf '# @label Old label\\n# 0 4 * * 1 /usr/bin/uptime\\n' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cockpit-cron")
+        b.wait_visible("#app")
+
+        # switch to the user level, where the seeded job lives
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "Old label")
+
+        # open the edit dialog and clear the label
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Edit')")
+        b.wait_visible("#cron-command")
+        b.set_input_text("#cron-label", "")
+        b.click("#cron-add-submit")
+
+        # the label comment is gone and the job stays disabled
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertNotIn("# @label", output)
+        self.assertIn("# 0 4 * * 1 /usr/bin/uptime", output)
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testFilterNarrowsJobs(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+
+        # seed two user jobs with different commands
+        m.execute("printf '0 4 * * * /usr/bin/uptime\\n0 0 * * 1 /usr/bin/dnf upgrade\\n' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cockpit-cron")
+        b.wait_visible("#app")
+
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_count(".pf-v6-c-data-list__item", 2)
+
+        # filtering on one command keeps only the matching job
+        b.set_input_text("#cron-jobs-filter", "uptime")
+        b.wait_count(".pf-v6-c-data-list__item", 1)
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # clearing the filter restores both jobs
+        b.set_input_text("#cron-jobs-filter", "")
+        b.wait_count(".pf-v6-c-data-list__item", 2)
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
     def testToggleSystemJob(self):
         b = self.browser
         m = self.machine
 
         self.login_and_go("/cockpit-cron")
+
+        # ensure a clean root crontab, also when a previous test run failed
+        m.execute("crontab -u root -r || true")
 
         # seed a root crontab with a job
         m.execute("echo '0 4 * * 1 /usr/bin/uptime' | crontab -u root -")
