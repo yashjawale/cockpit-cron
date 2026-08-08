@@ -214,6 +214,67 @@ class TestApplication(testlib.MachineCase):
         # clean up the user crontab again
         m.execute("su admin -c 'crontab -r' || true")
 
+    def testSkipUntil(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+
+        # seed a user job
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # open the skip dialog from the kebab menu and pick a future time
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+        b.set_input_text("#cron-skip-date", "2030-01-02")
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+        b.click("#cron-skip-submit")
+
+        # the job row is highlighted and shows the skip indicator, and the
+        # resume job is not listed
+        b.wait_attr_contains(".pf-v6-c-data-list__item", "class", "ct-new-item")
+        b.wait_in_text(".pf-v6-c-data-list__item", "Skipped until")
+        b.wait_count(".pf-v6-c-data-list__item", 1)
+
+        # the crontab comments the job out and stores the markers plus a
+        # resume job that runs at the chosen time
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("# @skipuntil 2030-01-02T12:00", output)
+        self.assertIn("# @token ", output)
+        self.assertIn("# @resume ", output)
+        self.assertIn("# 0 4 * * 1 /usr/bin/uptime", output)
+        self.assertIn("0 12 2 1 * sh -c", output)
+
+        # resume the job again from the dialog
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-resume")
+        b.click("#cron-skip-resume")
+
+        # the indicator is gone and the job runs again without any skip markers
+        b.wait_not_in_text(".pf-v6-c-data-list__item", "Skipped until")
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("0 4 * * 1 /usr/bin/uptime", output)
+        self.assertNotIn("@skipuntil", output)
+        self.assertNotIn("@token", output)
+        self.assertNotIn("@resume", output)
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
     def testAddSystemJob(self):
         b = self.browser
         m = self.machine

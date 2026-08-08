@@ -30,6 +30,10 @@ export interface CronJob {
     line: number;
     /** one based line number of the "@label" comment, if the job has one */
     labelLine?: number;
+    /** ISO timestamp until which the job is skipped, if it is skipped */
+    skipUntil?: string;
+    /** unique token linking a skipped job to its resume job, if skipped */
+    skipToken?: string;
 }
 
 /** Matches cron keywords such as "@daily" or "@reboot". */
@@ -181,17 +185,47 @@ export function parseCrontab(content: string, file: string): CronJob[] {
     const jobs: CronJob[] = [];
     let pendingLabel: string | undefined;
     let pendingLabelLine = 0;
+    let pendingSkipUntil: string | undefined;
+    let pendingSkipToken: string | undefined;
+    let skipResume = false;
 
     content.split("\n").forEach((rawLine, index) => {
         let line = rawLine.trim();
         if (!line)
             return;
 
+        // a generated resume job that re-enables a skipped job is not listed
+        if (skipResume) {
+            skipResume = false;
+            return;
+        }
+
         // a comment naming the following job, e.g. "# @label backup"
         const labelMatch = line.match(/^#+\s*@label\s+(.+)$/);
         if (labelMatch) {
             pendingLabel = labelMatch[1].trim();
             pendingLabelLine = index + 1;
+            return;
+        }
+
+        // a comment marking the following job as skipped, e.g. "# @skipuntil 2026-08-10T12:00"
+        const skipUntilMatch = line.match(/^#+\s*@skipuntil\s+(\S+)$/);
+        if (skipUntilMatch) {
+            pendingSkipUntil = skipUntilMatch[1];
+            return;
+        }
+
+        // a unique marker linking the following job to its resume job
+        const skipTokenMatch = line.match(/^#+\s*@token\s+(\S+)$/);
+        if (skipTokenMatch) {
+            pendingSkipToken = skipTokenMatch[1];
+            return;
+        }
+
+        // a marker above a generated resume job, which is hidden from the list
+        const resumeMatch = line.match(/^#+\s*@resume\s+(\S+)$/);
+        if (resumeMatch) {
+            skipResume = true;
             return;
         }
 
@@ -223,10 +257,14 @@ export function parseCrontab(content: string, file: string): CronJob[] {
             command,
             enabled,
             line: index + 1,
-            ...(pendingLabel !== undefined ? { label: pendingLabel, labelLine: pendingLabelLine } : {})
+            ...(pendingLabel !== undefined ? { label: pendingLabel, labelLine: pendingLabelLine } : {}),
+            ...(pendingSkipUntil !== undefined ? { skipUntil: pendingSkipUntil } : {}),
+            ...(pendingSkipToken !== undefined ? { skipToken: pendingSkipToken } : {})
         });
         pendingLabel = undefined;
         pendingLabelLine = 0;
+        pendingSkipUntil = undefined;
+        pendingSkipToken = undefined;
     });
 
     return jobs;
