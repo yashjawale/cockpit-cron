@@ -83,7 +83,8 @@ class TestApplication(testlib.MachineCase):
         # the schedule cell uses a monospace font
         b.wait_in_text(".pf-v6-c-data-list__item", "Daily uptime check")
         b.wait_in_text(".pf-v6-c-data-list__item", "0 4 * * 1")
-        self.assertIn("cron-monospace", b.attr(".pf-v6-c-data-list__item-content .pf-v6-c-data-list__cell:last-child", "class"))
+        cell_class = b.attr(".pf-v6-c-data-list__item-content .pf-v6-c-data-list__cell:last-child", "class")
+        self.assertIn("cron-monospace", cell_class)
 
         # the dialog is closed after adding
         b.wait_not_present("#cron-command")
@@ -365,7 +366,9 @@ class TestApplication(testlib.MachineCase):
         self.login_and_go("/cron")
 
         # seed a realistic crontab with env vars, comments and a non-cron line
-        m.execute("printf 'SHELL=/bin/sh\\nPATH=/sbin:/bin:/usr/sbin:/usr/bin\\n# a comment\\n0 4 * * 1 /usr/bin/uptime\\n# not a schedule\\n' | su admin -c 'crontab -'")
+        content = "SHELL=/bin/sh\\nPATH=/sbin:/bin:/usr/sbin:/usr/bin\\n"
+        content += "# a comment\\n0 4 * * 1 /usr/bin/uptime\\n# not a schedule\\n"
+        m.execute(f"printf '{content}' | su admin -c 'crontab -'")
         b.reload()
         b.enter_page("/cron")
         b.wait_visible("#app")
@@ -420,7 +423,8 @@ class TestApplication(testlib.MachineCase):
 
         # toggling off adds the disabled styling to the schedule cell
         b.click(".pf-v6-c-data-list__item input[type='checkbox']")
-        b.wait_attr_contains(".pf-v6-c-data-list__item-content .pf-v6-c-data-list__cell:last-child", "class", "cron-job-disabled")
+        schedule_cell = ".pf-v6-c-data-list__item-content .pf-v6-c-data-list__cell:last-child"
+        b.wait_attr_contains(schedule_cell, "class", "cron-job-disabled")
         b.wait(lambda: "# 0 4 * * 1 /usr/bin/uptime" in m.execute("su admin -c 'crontab -l'"))
 
         # clean up the user crontab again
