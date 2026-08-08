@@ -60,7 +60,7 @@ jobs:
           make node-cache
 
       - name: Upload source artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-assets
           path: cockpit-cron-*.tar.xz
@@ -104,7 +104,7 @@ jobs:
           sudo apt-get install -y build-essential debhelper gettext dpkg-dev xz-utils
 
       - name: Download source artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: release-assets
 
@@ -115,7 +115,7 @@ jobs:
           dpkg-buildpackage -b -us -uc
 
       - name: Upload Debian package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: debian-package
           path: ./*.deb
@@ -152,7 +152,7 @@ jobs:
         run: dnf install -y rpm-build make gettext libappstream-glib
 
       - name: Download source artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: release-assets
 
@@ -166,7 +166,7 @@ jobs:
           rpmbuild -bb SPECS/cockpit-cron.spec
 
       - name: Upload RPM package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rpm-package
           path: ~/rpmbuild/RPMS/noarch/*.rpm
