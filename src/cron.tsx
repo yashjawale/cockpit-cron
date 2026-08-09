@@ -336,10 +336,10 @@ function resumeCommand(token: string): string {
         "crontab -l | while IFS= read -r line; do case \"$line\" in " +
         `"# @resume ${token}"*) continue ;; ` +
         `"# @token ${token}"*) held=; skip=1; continue ;; ` +
-        "\"# @token \"*) [ -n \"$held\" ] && printf \"%s\\n\" \"$held\"; held=; printf \"%s\\n\" \"$line\"; continue ;; " +
+        "\"# @token \"*) [ -n \"$held\" ] && printf \"\\%s\\n\" \"$held\"; held=; printf \"\\%s\\n\" \"$line\"; continue ;; " +
         "\"# @skipuntil\"*) held=\"$line\"; continue ;; " +
         `*${token}*) continue ;; ` +
-        "*) if [ \"$skip\" = 1 ]; then skip=; printf \"%s\\n\" " + stripComment + "; elif [ -n \"$held\" ]; then printf \"%s\\n\" \"$held\"; held=; printf \"%s\\n\" \"$line\"; else printf \"%s\\n\" \"$line\"; fi ;; " +
+        "*) if [ \"$skip\" = 1 ]; then skip=; printf \"\\%s\\n\" " + stripComment + "; elif [ -n \"$held\" ]; then printf \"\\%s\\n\" \"$held\"; held=; printf \"\\%s\\n\" \"$line\"; else printf \"\\%s\\n\" \"$line\"; fi ;; " +
         "esac; done | crontab -";
     return `sh -c '${script}'`;
 }

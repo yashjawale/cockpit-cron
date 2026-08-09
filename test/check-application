@@ -275,6 +275,279 @@ class TestApplication(testlib.MachineCase):
         # clean up the user crontab again
         m.execute("su admin -c 'crontab -r' || true")
 
+    def testSkipUntilToggleResume(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # skip the job via the dialog
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+        b.set_input_text("#cron-skip-date", "2030-01-02")
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+        b.click("#cron-skip-submit")
+        b.wait_in_text(".pf-v6-c-data-list__item", "Skipped until")
+        self.assertIn("# @skipuntil 2030-01-02T12:00", m.execute("su admin -c 'crontab -l'"))
+
+        # flipping the disabled switch on resumes the job and clears the skip
+        b.click(".pf-v6-c-data-list__item input[type='checkbox']")
+        b.wait_not_in_text(".pf-v6-c-data-list__item", "Skipped until")
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("0 4 * * 1 /usr/bin/uptime", output)
+        self.assertNotIn("@skipuntil", output)
+        self.assertNotIn("@token", output)
+        self.assertNotIn("@resume", output)
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testDeleteSkippedJob(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # skip the job via the dialog
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+        b.set_input_text("#cron-skip-date", "2030-01-02")
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+        b.click("#cron-skip-submit")
+        b.wait_in_text(".pf-v6-c-data-list__item", "Skipped until")
+
+        # deleting a skipped job removes the markers and the resume job too
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Delete')")
+        b.wait_visible("#cron-delete-submit")
+        b.click("#cron-delete-submit")
+
+        b.wait_text(".pf-v6-c-empty-state__body", "No user cron jobs")
+        output = m.execute("su admin -c 'crontab -l'", check=False)
+        self.assertNotIn("uptime", output)
+        self.assertNotIn("@skipuntil", output)
+        self.assertNotIn("@token", output)
+        self.assertNotIn("@resume", output)
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testEditSkippedJob(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # skip the job first
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+        b.set_input_text("#cron-skip-date", "2030-01-02")
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+        b.click("#cron-skip-submit")
+        b.wait_in_text(".pf-v6-c-data-list__item", "Skipped until")
+
+        # editing a skipped job keeps it skipped with the new content
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Edit')")
+        b.wait_visible("#cron-command")
+        b.set_input_text("#cron-schedule-custom", "0 0 * * *")
+        b.set_input_text("#cron-command", "/usr/bin/uptime --new")
+        b.set_input_text("#cron-label", "New label")
+        b.click("#cron-add-submit")
+
+        b.wait_in_text(".pf-v6-c-data-list__item", "Skipped until")
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("# @skipuntil 2030-01-02T12:00", output)
+        self.assertIn("# 0 0 * * * /usr/bin/uptime --new", output)
+        self.assertIn("# @label New label", output)
+        self.assertIn("# @resume ", output)
+
+        # resuming the edited job restores it cleanly
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-resume")
+        b.click("#cron-skip-resume")
+        b.wait_not_in_text(".pf-v6-c-data-list__item", "Skipped until")
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("0 0 * * * /usr/bin/uptime --new", output)
+        self.assertNotIn("@skipuntil", output)
+        self.assertNotIn("@resume", output)
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testSkipUntilChangeTime(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # skip the job until a first time
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+        b.set_input_text("#cron-skip-date", "2030-01-02")
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+        b.click("#cron-skip-submit")
+        b.wait_in_text(".pf-v6-c-data-list__item", "Skipped until")
+
+        # the dialog pre-fills the current skip time; change it to a new time
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+        b.wait_val("#cron-skip-date", "2030-01-02")
+        b.set_input_text("#cron-skip-date", "2030-02-03")
+        b.set_input_text("#cron-skip-time", "09:15")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+        b.click("#cron-skip-submit")
+
+        # exactly one skip state remains, updated to the new time
+        b.wait_in_text(".pf-v6-c-data-list__item", "Skipped until")
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("# @skipuntil 2030-02-03T09:15", output)
+        self.assertNotIn("2030-01-02T12:00", output)
+        # count only the marker comment lines, not the resume command text
+        marker_lines = [l for l in output.splitlines() if l.startswith("# @")]
+        self.assertEqual(sum(1 for l in marker_lines if l.startswith("# @token ")), 1)
+        self.assertEqual(sum(1 for l in marker_lines if l.startswith("# @resume ")), 1)
+        self.assertIn("15 9 3 2 * sh -c", output)
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testSkipSystemJob(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean root crontab, also when a previous test run failed
+        m.execute("crontab -u root -r || true")
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | crontab -u root -")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # skip the system job via the dialog
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+        b.set_input_text("#cron-skip-date", "2030-01-02")
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+        b.click("#cron-skip-submit")
+
+        # the root crontab gets the markers and the resume job
+        b.wait_in_text(".pf-v6-c-data-list__item", "Skipped until")
+        output = m.execute("crontab -u root -l")
+        self.assertIn("# @skipuntil 2030-01-02T12:00", output)
+        self.assertIn("# @resume ", output)
+        self.assertIn("0 12 2 1 * sh -c", output)
+
+        # resuming via the switch restores the root job
+        b.click(".pf-v6-c-data-list__item input[type='checkbox']")
+        b.wait_not_in_text(".pf-v6-c-data-list__item", "Skipped until")
+        output = m.execute("crontab -u root -l")
+        self.assertIn("0 4 * * 1 /usr/bin/uptime", output)
+        self.assertNotIn("@skipuntil", output)
+
+        # clean up the root crontab again
+        m.execute("crontab -u root -r || true")
+
+    def testSkipUntilValidation(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+
+        # a past date or a malformed time keeps the submit disabled
+        b.set_input_text("#cron-skip-date", "2000-01-01")
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", "")
+
+        b.set_input_text("#cron-skip-date", "2030-01-02")
+        b.set_input_text("#cron-skip-time", "99:99")
+        b.wait_attr("#cron-skip-submit", "disabled", "")
+
+        # a valid future time enables it again
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
     def testAddSystemJob(self):
         b = self.browser
         m = self.machine

@@ -11,7 +11,7 @@ import { Button } from "@patternfly/react-core/dist/esm/components/Button";
 import { DatePicker } from "@patternfly/react-core/dist/esm/components/DatePicker";
 import { Form, FormGroup } from "@patternfly/react-core/dist/esm/components/Form";
 import { Modal, ModalBody, ModalHeader } from "@patternfly/react-core/dist/esm/components/Modal";
-import { TimePicker } from "@patternfly/react-core/dist/esm/components/TimePicker";
+import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput";
 
 import cockpit from 'cockpit';
 
@@ -25,7 +25,7 @@ function formatDate(date: Date): string {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-/** Format a date as the "HH:MM" value used by the time picker. */
+/** Format a date as the "HH:MM" value used by the time input. */
 function formatTime(date: Date): string {
     const pad = (value: number) => String(value).padStart(2, "0");
     return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -140,13 +140,13 @@ export const SkipUntilDialog = ({ level, job, onClose, onSaved }: SkipUntilDialo
                         />
                     </FormGroup>
                     <FormGroup label={_("Skip until time")} fieldId="cron-skip-time">
-                        <TimePicker
-                            is24Hour
-                            time={skipTime}
-                            menuAppendTo={document.body}
-                            inputProps={{ id: "cron-skip-time", "aria-label": _("Skip until time") }}
-                            onChange={(_event, time) => {
-                                setSkipTime(time);
+                        <TextInput
+                            id="cron-skip-time"
+                            aria-label={_("Skip until time")}
+                            placeholder={_("e.g. 12:00")}
+                            value={skipTime}
+                            onChange={(_event, value) => {
+                                setSkipTime(value);
                                 setError(null);
                             }}
                         />
