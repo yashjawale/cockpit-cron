@@ -193,3 +193,209 @@ export async function updateCronJob(
 
     await writeCrontabContent(level, lines.join("\n"));
 }
+
+/**
+ * A single run of a cron job, as found in its log file.
+ */
+export interface CronRun {
+    /** unique id for react keys */
+    id: string;
+    /** ISO timestamp of when the run started */
+    timestamp: string;
+    /** the raw output the run produced */
+    output: string;
+}
+
+/**
+ * Generate a short unique token identifying a job's log file.
+ */
+function newLogToken(): string {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36);
+    return timestamp + random.slice(2, 8);
+}
+
+/**
+ * Escape a command so that it can be embedded into a single quoted shell
+ * argument of a wrapping "sh -c" invocation.
+ *
+ * @param command the command to escape
+ */
+function escapeSh(command: string): string {
+    return command.replace(/'/g, "'\\''");
+}
+
+/**
+ * Undo the escaping done by {@link escapeSh}.
+ *
+ * @param command the escaped command
+ */
+function unescapeSh(command: string): string {
+    return command.replace(/'\\''/g, "'");
+}
+
+/**
+ * The shell fragment that prefixes each run in a log file with a marker line
+ * carrying an ISO timestamp, e.g. "=== run 2026-08-09T10:00:00+00:00 ===".
+ * Uses "date -Iseconds" so that no "%" characters end up in the crontab,
+ * which cron would otherwise convert into newlines.
+ */
+const LOG_RUN_MARKER = 'echo "=== run $(date -Iseconds) ==="';
+
+/**
+ * Wrap a cron job command so that all of its output is appended to the given
+ * log file, with a marker line identifying each individual run.
+ *
+ * @param command the original command
+ * @param logFile the path of the log file
+ * @returns the wrapped command to store in the crontab
+ */
+export function loggingCommand(command: string, logFile: string): string {
+    return `/bin/sh -c '${LOG_RUN_MARKER}; ${escapeSh(command)}' >> ${logFile} 2>&1`;
+}
+
+/**
+ * Extract the original command from a command that was wrapped by
+ * {@link loggingCommand}, or return the command unchanged if it was not
+ * wrapped.
+ *
+ * @param command the command as stored in the crontab
+ * @returns the original command
+ */
+export function unwrapLoggingCommand(command: string): string {
+    const match = command.match(/^\/bin\/sh -c 'echo "=== run \$\(date -Iseconds\) ==="; (.+)' >> \S+ 2>&1$/);
+    if (match === null)
+        return command;
+    return unescapeSh(match[1]);
+}
+
+/**
+ * The directory that holds the log files of cron jobs for the given level.
+ *
+ * @param level which set of crontabs the jobs belong to
+ */
+async function logDirectory(level: CronLevel): Promise<string> {
+    if (level === "system")
+        return "/var/log/cockpit-cron";
+    const user = await cockpit.user();
+    return `${user.home}/.cache/cockpit-cron`;
+}
+
+/**
+ * The spawn options for touching files of the given level. System level log
+ * files live under /var/log and require administrative access.
+ *
+ * @param level which set of crontabs the jobs belong to
+ */
+function logSpawnOptions(level: CronLevel): { superuser?: "require" } {
+    return level === "system" ? { superuser: "require" } : {};
+}
+
+/**
+ * Enable or disable logging of a cron job's output into a log file.
+ *
+ * Enabling wraps the job's command so that its output is appended to a log
+ * file, with a marker line identifying each run, and stores the file path in
+ * a "@log" comment above the job. Disabling removes the comment and restores
+ * the original command. Modifying system level jobs requires administrative
+ * access.
+ *
+ * @param level which set of crontabs to modify
+ * @param job the job to enable or disable logging for
+ * @param enabled whether logging should be enabled
+ */
+export async function setCronJobLogging(level: CronLevel, job: CronJob, enabled: boolean): Promise<void> {
+    const content = await readCrontabContent(level);
+    const lines = content.split("\n");
+    const jobIndex = job.line - 1;
+    const commentPrefix = isCommented(lines[jobIndex]) ? "# " : "";
+
+    if (enabled) {
+        const token = newLogToken();
+        const dir = await logDirectory(level);
+        const logFile = `${dir}/${token}.log`;
+        await cockpit.spawn(["mkdir", "-p", dir], logSpawnOptions(level));
+        lines[jobIndex] = commentPrefix + `${job.schedule} ${loggingCommand(job.command, logFile)}`;
+        lines.splice(jobIndex, 0, `# @log ${logFile}`);
+    } else {
+        // drop the "@log" comment above the job, which shifts the job up by one
+        let removed = 0;
+        if (job.logFile !== undefined) {
+            const logComment = `# @log ${job.logFile}`;
+            for (let i = jobIndex - 1; i >= 0; i--) {
+                if (lines[i].trim() === logComment) {
+                    lines.splice(i, 1);
+                    removed = 1;
+                    break;
+                }
+            }
+        }
+        lines[jobIndex - removed] = commentPrefix + `${job.schedule} ${unwrapLoggingCommand(job.command)}`;
+    }
+
+    await writeCrontabContent(level, lines.join("\n"));
+}
+
+/**
+ * Delete the log file of a cron job.
+ *
+ * @param level which set of crontabs the job belongs to
+ * @param job the job whose log file to delete
+ */
+export async function pruneCronJobLog(level: CronLevel, job: CronJob): Promise<void> {
+    if (job.logFile === undefined)
+        return;
+    await cockpit.spawn(["rm", "-f", job.logFile], logSpawnOptions(level));
+}
+
+/**
+ * Parse the contents of a cron job's log file into individual runs.
+ *
+ * A run starts at a marker line of the form "=== run <iso timestamp> ==="
+ * that was written by the wrapped command.
+ *
+ * @param content the raw log file contents
+ * @returns the list of runs found in the log
+ */
+export function parseCronLog(content: string): CronRun[] {
+    const runs: CronRun[] = [];
+    let current: CronRun | null = null;
+
+    content.split("\n").forEach((line, index) => {
+        const match = line.match(/^=== run (.+) ===$/);
+        if (match) {
+            current = {
+                id: `run-${index}`,
+                timestamp: match[1].trim(),
+                output: ""
+            };
+            runs.push(current);
+        } else if (current) {
+            current.output += line + "\n";
+        }
+    });
+
+    return runs;
+}
+
+/**
+ * Read the log file of a cron job and parse it into individual runs.
+ *
+ * @param level which set of crontabs the job belongs to
+ * @param job the job whose log file to read
+ * @returns the list of runs found in the log, empty if there is no log
+ */
+export async function readCronJobLogs(level: CronLevel, job: CronJob): Promise<CronRun[]> {
+    if (job.logFile === undefined)
+        return [];
+
+    let content: string;
+    try {
+        content = await cockpit.spawn(["cat", job.logFile], logSpawnOptions(level));
+    } catch {
+        // the log file does not exist yet or is not readable
+        return [];
+    }
+
+    return parseCronLog(content);
+}

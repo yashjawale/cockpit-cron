@@ -30,6 +30,9 @@ export interface CronJob {
     line: number;
     /** one based line number of the "@label" comment, if the job has one */
     labelLine?: number;
+    /** path of the log file that the job output is redirected to, if logging
+     *  is enabled for the job */
+    logFile?: string;
 }
 
 /** Matches cron keywords such as "@daily" or "@reboot". */
@@ -181,6 +184,7 @@ export function parseCrontab(content: string, file: string): CronJob[] {
     const jobs: CronJob[] = [];
     let pendingLabel: string | undefined;
     let pendingLabelLine = 0;
+    let pendingLogFile: string | undefined;
 
     content.split("\n").forEach((rawLine, index) => {
         let line = rawLine.trim();
@@ -192,6 +196,13 @@ export function parseCrontab(content: string, file: string): CronJob[] {
         if (labelMatch) {
             pendingLabel = labelMatch[1].trim();
             pendingLabelLine = index + 1;
+            return;
+        }
+
+        // a comment naming the log file of the following job
+        const logMatch = line.match(/^#+\s*@log\s+(\S+)$/);
+        if (logMatch) {
+            pendingLogFile = logMatch[1];
             return;
         }
 
@@ -223,10 +234,12 @@ export function parseCrontab(content: string, file: string): CronJob[] {
             command,
             enabled,
             line: index + 1,
-            ...(pendingLabel !== undefined ? { label: pendingLabel, labelLine: pendingLabelLine } : {})
+            ...(pendingLabel !== undefined ? { label: pendingLabel, labelLine: pendingLabelLine } : {}),
+            ...(pendingLogFile !== undefined ? { logFile: pendingLogFile } : {})
         });
         pendingLabel = undefined;
         pendingLabelLine = 0;
+        pendingLogFile = undefined;
     });
 
     return jobs;

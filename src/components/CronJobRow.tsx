@@ -9,6 +9,7 @@ import { Dropdown, DropdownItem, DropdownList } from "@patternfly/react-core/dis
 import {
     DataListAction,
     DataListCell,
+    DataListContent,
     DataListItem,
     DataListItemCells,
     DataListItemRow,
@@ -17,10 +18,12 @@ import {
 import { MenuToggle } from "@patternfly/react-core/dist/esm/components/MenuToggle";
 import { Switch } from "@patternfly/react-core/dist/esm/components/Switch";
 import { EllipsisVIcon } from '@patternfly/react-icons/dist/esm/icons/ellipsis-v-icon';
+import { ListIcon } from '@patternfly/react-icons/dist/esm/icons/list-icon';
 
 import cockpit from 'cockpit';
 
-import type { CronJob } from "../cron";
+import { unwrapLoggingCommand, type CronJob, type CronLevel } from "../cron";
+import { CronJobLogs } from "./CronJobLogs";
 
 const _ = cockpit.gettext;
 
@@ -28,12 +31,20 @@ const _ = cockpit.gettext;
  * Props for the {@link CronJobRow} component.
  */
 export interface CronJobRowProps {
+    /** which set of crontabs the job belongs to */
+    level: CronLevel;
     /** the cron job to display */
     job: CronJob;
     /** callback invoked when the user wants to edit the job */
     onEdit: (job: CronJob) => void;
     /** callback invoked when the user wants to delete the job */
     onDelete: (job: CronJob) => void;
+    /** callback invoked when the user toggles logging for the job */
+    onToggleLogging: (job: CronJob, enabled: boolean) => void;
+    /** callback invoked when the user wants to prune the job's logs */
+    onPruneLogs: (job: CronJob) => void;
+    /** a counter that triggers a reload of the expanded logs when incremented */
+    logRefresh: number;
     /** callback invoked when the user toggles the enabled state of the job */
     onToggleEnabled: (job: CronJob, enabled: boolean) => void;
 }
@@ -42,10 +53,12 @@ export interface CronJobRowProps {
  * A single cron job rendered as a row of a data list.
  *
  * The row shows an enable switch, the job title followed by its schedule, and
- * a kebab menu with edit and delete actions.
+ * a kebab menu with edit and delete actions. When logging is enabled for the
+ * job, a logs button expands the row into a viewer for its run logs.
  */
-export const CronJobRow = ({ job, onEdit, onDelete, onToggleEnabled }: CronJobRowProps) => {
+export const CronJobRow = ({ level, job, onEdit, onDelete, onToggleLogging, onPruneLogs, logRefresh, onToggleEnabled }: CronJobRowProps) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(false);
     const [flash, setFlash] = useState(false);
 
     // highlight the row briefly after the enabled state changes
@@ -56,12 +69,14 @@ export const CronJobRow = ({ job, onEdit, onDelete, onToggleEnabled }: CronJobRo
         return () => clearTimeout(timer);
     }, [flash]);
 
+    const display = job.label || (job.logFile !== undefined ? unwrapLoggingCommand(job.command) : job.command);
+
     return (
-        <DataListItem className={flash ? "ct-new-item" : ""} aria-labelledby={`cron-job-${job.id}`}>
+        <DataListItem isExpanded={isExpanded} className={flash ? "ct-new-item" : ""} aria-labelledby={`cron-job-${job.id}`}>
             <DataListItemRow>
                 <DataListItemCells
                     dataListCells={[
-                        <DataListCell key="job" id={`cron-job-${job.id}`}>
+                        <DataListCell key="job" id={`cron-job-${job.id}`} className="cron-job-label-cell">
                             <div className="cron-job-main">
                                 <Switch
                                     id={`cron-job-toggle-${job.id}`}
@@ -72,20 +87,35 @@ export const CronJobRow = ({ job, onEdit, onDelete, onToggleEnabled }: CronJobRo
                                         onToggleEnabled(job, enabled);
                                     }}
                                 />
-                                <DataListText className={job.enabled ? "" : "cron-job-disabled"}>{job.label || job.command}</DataListText>
+                                <DataListText className={job.enabled ? "" : "cron-job-disabled"}>{display}</DataListText>
                             </div>
                         </DataListCell>,
-                        <DataListCell key="schedule" className={`cron-monospace ${job.enabled ? "" : "cron-job-disabled"}`}>{job.schedule}</DataListCell>
+                        <DataListCell key="schedule" className={`cron-job-schedule-cell cron-monospace ${job.enabled ? "" : "cron-job-disabled"}`}>{job.schedule}</DataListCell>
                     ]}
                 />
                 <DataListAction
                     id={`cron-job-actions-${job.id}`}
+                    className="cron-job-actions"
                     aria-labelledby={`cron-job-${job.id}`}
                     aria-label={_("Job actions")}
                 >
+                    {job.logFile !== undefined && (
+                        <MenuToggle
+                            id={`cron-job-logs-${job.id}`}
+                            className={`cron-job-logs-toggle${isExpanded ? " cron-job-logs-toggle-expanded" : ""}`}
+                            variant="plain"
+                            isExpanded={isExpanded}
+                            aria-label={_("View logs")}
+                            aria-expanded={isExpanded}
+                            onClick={() => setIsExpanded(!isExpanded)}
+                        >
+                            <ListIcon />
+                        </MenuToggle>
+                    )}
                     <Dropdown
                         isOpen={isOpen}
                         onOpenChange={setIsOpen}
+                        popperProps={{ preventOverflow: true }}
                         toggle={toggleRef => (
                             <MenuToggle
                                 ref={toggleRef}
@@ -103,6 +133,22 @@ export const CronJobRow = ({ job, onEdit, onDelete, onToggleEnabled }: CronJobRo
                             <DropdownItem onClick={() => onEdit(job)}>
                                 {_("Edit")}
                             </DropdownItem>
+                            {job.logFile !== undefined
+                                ? (
+                                    <>
+                                        <DropdownItem onClick={() => onToggleLogging(job, false)}>
+                                            {_("Disable logging")}
+                                        </DropdownItem>
+                                        <DropdownItem onClick={() => onPruneLogs(job)}>
+                                            {_("Prune logs")}
+                                        </DropdownItem>
+                                    </>
+                                )
+                                : (
+                                    <DropdownItem onClick={() => onToggleLogging(job, true)}>
+                                        {_("Enable logging")}
+                                    </DropdownItem>
+                                )}
                             <DropdownItem isDanger onClick={() => onDelete(job)}>
                                 {_("Delete")}
                             </DropdownItem>
@@ -110,6 +156,11 @@ export const CronJobRow = ({ job, onEdit, onDelete, onToggleEnabled }: CronJobRo
                     </Dropdown>
                 </DataListAction>
             </DataListItemRow>
+            {job.logFile !== undefined && (
+                <DataListContent id={`cron-job-logs-content-${job.id}`} aria-label={_("Job logs")} isHidden={!isExpanded} hasNoPadding>
+                    {isExpanded && <CronJobLogs level={level} job={job} refresh={logRefresh} />}
+                </DataListContent>
+            )}
         </DataListItem>
     );
 };
