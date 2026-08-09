@@ -554,7 +554,9 @@ class TestApplication(testlib.MachineCase):
 
         output = m.execute("su admin -c 'crontab -l'")
         logpath = re.search(r"# @log (\S+)", output).group(1)
-        m.execute(f"su admin -c 'printf \"=== run 2026-08-09T10:00:00+00:00 ===\\nhello from run one\\n=== run 2026-08-09T11:30:00+00:00 ===\\nhello from run two\\n\" > {logpath}'")
+        log_content = ("=== run 2026-08-09T10:00:00+00:00 ===\\nhello from run one\\n"
+                       "=== run 2026-08-09T11:30:00+00:00 ===\\nhello from run two\\n")
+        m.execute(f"su admin -c 'printf \"{log_content}\" > {logpath}'")
         self.assertTrue(m.execute(f"su admin -c 'test -e {logpath}'") == "")
 
         # expanding the row shows the log viewer with the two runs
@@ -566,8 +568,8 @@ class TestApplication(testlib.MachineCase):
         # the latest run is selected by default, its output is shown
         b.wait_in_text(".cron-log-output", "hello from run two")
 
-        # selecting the other run shows its output
-        b.click(".cron-log-runs button:first-child")
+        # selecting the first run in the list shows its output
+        b.click(".cron-log-runs .pf-v6-c-menu__list-item:first-child button")
         b.wait_in_text(".cron-log-output", "hello from run one")
 
         # clean up the user crontab and log directory again
