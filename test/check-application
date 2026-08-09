@@ -722,6 +722,44 @@ class TestApplication(testlib.MachineCase):
         # clean up the user crontab again
         m.execute("su admin -c 'crontab -r' || true")
 
+    def testManagedRegionFormatting(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+        m.execute("su admin -c 'crontab -r' || true")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+
+        # add a first job, the managed region is laid out with blank lines
+        b.click("#cron-add-job")
+        b.wait_visible("#cron-command")
+        b.select_from_dropdown("#cron-schedule", "custom")
+        b.set_input_text("#cron-schedule-custom", "0 4 * * 1")
+        b.set_input_text("#cron-command", "/usr/bin/uptime")
+        b.set_input_text("#cron-label", "Daily check")
+        b.click("#cron-add-submit")
+        b.wait_in_text(".pf-v6-c-data-list__item", "Daily check")
+
+        self.assertEqual(m.execute("su admin -c 'crontab -l'"),
+            "# BEGIN COCKPIT-CRON\n\n# @label Daily check\n0 4 * * 1 /usr/bin/uptime\n\n# END COCKPIT-CRON\n")
+
+        # a second job is separated from the first one by a blank line
+        b.click("#cron-add-job")
+        b.wait_visible("#cron-command")
+        b.select_from_dropdown("#cron-schedule", "custom")
+        b.set_input_text("#cron-schedule-custom", "0 0 * * 2")
+        b.set_input_text("#cron-command", "/usr/bin/second")
+        b.click("#cron-add-submit")
+        b.wait_count(".pf-v6-c-data-list__item", 2)
+
+        self.assertEqual(m.execute("su admin -c 'crontab -l'"),
+            "# BEGIN COCKPIT-CRON\n\n# @label Daily check\n0 4 * * 1 /usr/bin/uptime\n\n"
+            "0 0 * * 2 /usr/bin/second\n\n# END COCKPIT-CRON\n")
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
     def testImportPreservesLabelsAndDisabled(self):
         b = self.browser
         m = self.machine

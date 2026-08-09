@@ -108,14 +108,41 @@ export async function readImportableJobs(level: CronLevel): Promise<CronJob[]> {
 }
 
 /**
- * Append a new managed region, delimited by the begin and end markers, to the
- * given crontab lines, keeping a trailing empty line if present.
+ * Serialize the given managed jobs into crontab lines, surrounding each job
+ * entry and the delimiter markers with blank lines for readability.
  */
-function appendManagedRegion(lines: string[], managedLines: string[]): void {
-    const trailing = lines.length > 0 && lines[lines.length - 1] === "" ? lines.pop() : undefined;
-    lines.push(BEGIN_MARKER, ...managedLines, END_MARKER);
-    if (trailing !== undefined)
-        lines.push("");
+function serializeJobs(jobs: CronJob[]): string[] {
+    if (jobs.length === 0)
+        return [];
+    return [
+        "",
+        ...jobs.flatMap(job => [
+            ...(job.label !== undefined ? [`# @label ${job.label}`] : []),
+            `${job.enabled ? "" : "# "}${job.schedule} ${job.command}`,
+            "",
+        ]),
+    ];
+}
+
+/**
+ * Replace the managed region of the given crontab lines with the given jobs,
+ * creating the region at the end of the file if the crontab has none yet.
+ *
+ * Everything outside of the region is left untouched. A trailing empty line of
+ * the file is preserved.
+ */
+function setManagedRegion(lines: string[], jobs: CronJob[]): string[] {
+    const body = serializeJobs(jobs);
+    const region = findManagedRegion(lines);
+    if (region !== null) {
+        lines.splice(region.start + 1, region.end - region.start - 1, ...body);
+    } else if (jobs.length > 0) {
+        const trailing = lines.length > 0 && lines[lines.length - 1] === "" ? lines.pop() : undefined;
+        lines.push(BEGIN_MARKER, ...body, END_MARKER);
+        if (trailing !== undefined)
+            lines.push("");
+    }
+    return lines;
 }
 
 /**
@@ -139,16 +166,21 @@ export async function addCronJob(
 ): Promise<void> {
     const content = await readCrontabContent(level);
     const lines = content.split("\n");
-    const jobLine = `${schedule} ${command}`;
-    const managedLines = label ? [`# @label ${label}`, jobLine] : [jobLine];
+    const file = level === "system" ? "root crontab" : "user crontab";
 
     const region = findManagedRegion(lines);
-    if (region !== null)
-        lines.splice(region.end, 0, ...managedLines);
-    else
-        appendManagedRegion(lines, managedLines);
+    const managed = region !== null ? parseCrontab(content, file, region) : [];
+    managed.push({
+        id: `${file}:new`,
+        file,
+        schedule,
+        command,
+        enabled: true,
+        line: 0,
+        ...(label ? { label } : {})
+    });
 
-    await writeCrontabContent(level, lines.join("\n"));
+    await writeCrontabContent(level, setManagedRegion(lines, managed).join("\n"));
 }
 
 /**
@@ -167,7 +199,8 @@ export async function importCronJobs(level: CronLevel): Promise<void> {
     const lines = content.split("\n");
     const file = level === "system" ? "root crontab" : "user crontab";
 
-    const importable = parseImportableJobs(content, file, findManagedRegion(lines));
+    const region = findManagedRegion(lines);
+    const importable = parseImportableJobs(content, file, region);
     if (importable.length === 0)
         return;
 
@@ -182,15 +215,32 @@ export async function importCronJobs(level: CronLevel): Promise<void> {
     // split the file into the lines that stay outside and the lines that are
     // moved into the managed region, preserving their relative order
     const outside = lines.filter((_, index) => !move.has(index));
-    const imported = lines.filter((_, index) => move.has(index));
 
-    const region = findManagedRegion(outside);
-    if (region !== null)
-        outside.splice(region.end, 0, ...imported);
-    else
-        appendManagedRegion(outside, imported);
+    // merge the imported jobs into the managed jobs of the region
+    const managed = region !== null ? parseCrontab(content, file, region) : [];
+    const merged = [...managed, ...importable];
+    await writeCrontabContent(level, setManagedRegion(outside, merged).join("\n"));
+}
 
-    await writeCrontabContent(level, outside.join("\n"));
+/**
+ * Delete a cron job from the crontab of the given level.
+ *
+ * Removes the job from the managed region, rewriting the region so that the
+ * delimiter formatting stays intact. Deleting system level jobs requires
+ * administrative access.
+ *
+ * @param level which set of crontabs to modify
+ * @param job the job to remove
+ */
+export async function deleteCronJob(level: CronLevel, job: CronJob): Promise<void> {
+    const content = await readCrontabContent(level);
+    const lines = content.split("\n");
+    const file = level === "system" ? "root crontab" : "user crontab";
+
+    const region = findManagedRegion(lines);
+    const managed = region !== null ? parseCrontab(content, file, region) : [];
+    const remaining = managed.filter(candidate => candidate.id !== job.id);
+    await writeCrontabContent(level, setManagedRegion(lines, remaining).join("\n"));
 }
 
 /**
@@ -200,38 +250,6 @@ function isCommented(line: string): boolean {
     return line.trim().startsWith("#");
 }
 
-/**
- * Delete a cron job from the crontab of the given level.
- *
- * Removes the line the job was parsed from. Deleting system level jobs
- * requires administrative access.
- *
- * @param level which set of crontabs to modify
- * @param job the job to remove
- */
-export async function deleteCronJob(level: CronLevel, job: CronJob): Promise<void> {
-    const content = await readCrontabContent(level);
-    const lines = content.split("\n");
-    // remove the job line and any label comment above it
-    lines.splice(job.line - 1, 1);
-    if (job.labelLine !== undefined)
-        lines.splice(job.labelLine - 1, 1);
-    await writeCrontabContent(level, lines.join("\n"));
-}
-
-/**
- * Update a cron job in the crontab of the given level.
- *
- * Replaces the line the job is found from with a new schedule, command, and
- * optional label. Modifying system level jobs requires administrative
- * access.
- *
- * @param level which set of crontabs to modify
- * @param job the job to update
- * @param schedule the new schedule, either five fields or a "@period" keyword
- * @param command the new command the job runs
- * @param label the new display label, or empty to remove it
- */
 /**
  * Enable or disable a cron job in the crontab of the given level.
  *
@@ -254,6 +272,19 @@ export async function setCronJobEnabled(level: CronLevel, job: CronJob, enabled:
     await writeCrontabContent(level, lines.join("\n"));
 }
 
+/**
+ * Update a cron job in the crontab of the given level.
+ *
+ * Replaces the line the job is found from with a new schedule, command, and
+ * optional label, keeping the job disabled if it was disabled. Modifying
+ * system level jobs requires administrative access.
+ *
+ * @param level which set of crontabs to modify
+ * @param job the job to update
+ * @param schedule the new schedule, either five fields or a "@period" keyword
+ * @param command the new command the job runs
+ * @param label the new display label, or empty to remove it
+ */
 export async function updateCronJob(
     level: CronLevel,
     job: CronJob,
