@@ -12,6 +12,12 @@ import testlib
 # way that influences other tests.
 @testlib.nondestructive
 class TestApplication(testlib.MachineCase):
+    def seed_managed_crontab(self, level, lines):
+        """Seed the crontab of the given level, wrapping lines in the managed delimiters."""
+        content = "# BEGIN COCKPIT-CRON\\n" + "\\n".join(lines) + "\\n# END COCKPIT-CRON\\n"
+        cmd = "su admin -c 'crontab -'" if level == "user" else "crontab -u root -"
+        self.machine.execute(f"printf '{content}' | {cmd}")
+
     def testBasic(self):
         b = self.browser
         m = self.machine
@@ -23,12 +29,13 @@ class TestApplication(testlib.MachineCase):
         b.wait_attr_contains("#cron-level-system", "class", "pf-m-selected")
         b.wait_visible(".pf-v6-c-toolbar__group.pf-m-align-end")
 
-        # add a root crontab and verify it shows up as a system level job
-        m.execute("echo '0 0 * * * /usr/bin/uptime' | crontab -u root -")
+        # add a managed root crontab and verify it shows up as a system level job
+        self.seed_managed_crontab("system", lines=["0 0 * * * /usr/bin/uptime"])
         b.reload()
         b.enter_page("/cron")
         b.wait_visible("#app")
         b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+        b.wait_not_present("#cron-import-alert")
 
         # switch to user level jobs, which are empty for a fresh user
         b.click("#cron-level-user")
@@ -89,8 +96,11 @@ class TestApplication(testlib.MachineCase):
         # the dialog is closed after adding
         b.wait_not_present("#cron-command")
 
-        # the crontab stores the label as a comment and the command below it
+        # the crontab stores the label as a comment and the command below it,
+        # all within the managed delimiter markers
         output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("# BEGIN COCKPIT-CRON", output)
+        self.assertIn("# END COCKPIT-CRON", output)
         self.assertIn("# @label Daily uptime check", output)
         self.assertIn("0 4 * * 1 /usr/bin/uptime", output)
 
@@ -159,8 +169,8 @@ class TestApplication(testlib.MachineCase):
         # ensure a clean user crontab, also when a previous test run failed
         m.execute("su admin -c 'crontab -r' || true")
 
-        # seed a user crontab with a job
-        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
+        # seed a managed user crontab with a job
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 /usr/bin/uptime"])
         b.reload()
         b.enter_page("/cron")
         b.wait_visible("#app")
@@ -205,11 +215,15 @@ class TestApplication(testlib.MachineCase):
         b.wait_visible("#cron-delete-submit")
         b.click("#cron-delete-submit")
 
-        # the job disappears from the list and the crontab, along with its label
+        # the job disappears from the list and the crontab, along with its label,
+        # while the delimiter markers stay in place
         b.wait_text(".pf-v6-c-empty-state__body", "No user cron jobs")
         output = m.execute("su admin -c 'crontab -l'", check=False)
         self.assertNotIn("/usr/bin/uptime", output)
         self.assertNotIn("# @label New label", output)
+        self.assertIn("# BEGIN COCKPIT-CRON", output)
+        self.assertIn("# END COCKPIT-CRON", output)
+        self.assertLess(output.index("# BEGIN COCKPIT-CRON"), output.index("# END COCKPIT-CRON"))
 
         # clean up the user crontab again
         m.execute("su admin -c 'crontab -r' || true")
@@ -232,7 +246,10 @@ class TestApplication(testlib.MachineCase):
         b.click("#cron-add-submit")
 
         b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime --system")
-        self.assertIn("0 6 * * 2 /usr/bin/uptime --system", m.execute("crontab -u root -l"))
+        output = m.execute("crontab -u root -l")
+        self.assertIn("# BEGIN COCKPIT-CRON", output)
+        self.assertIn("0 6 * * 2 /usr/bin/uptime --system", output)
+        self.assertIn("# END COCKPIT-CRON", output)
 
         # clean up the root crontab again
         m.execute("crontab -u root -r || true")
@@ -246,8 +263,8 @@ class TestApplication(testlib.MachineCase):
         # ensure a clean user crontab, also when a previous test run failed
         m.execute("su admin -c 'crontab -r' || true")
 
-        # seed a disabled user job with a label
-        m.execute("printf '# @label Old label\\n# 0 4 * * 1 /usr/bin/uptime\\n' | su admin -c 'crontab -'")
+        # seed a disabled managed user job with a label
+        self.seed_managed_crontab("user", lines=["# @label Old label", "# 0 4 * * 1 /usr/bin/uptime"])
         b.reload()
         b.enter_page("/cron")
         b.wait_visible("#app")
@@ -283,8 +300,8 @@ class TestApplication(testlib.MachineCase):
         # ensure a clean user crontab, also when a previous test run failed
         m.execute("su admin -c 'crontab -r' || true")
 
-        # seed two user jobs with different commands
-        m.execute("printf '0 4 * * * /usr/bin/uptime\\n0 0 * * 1 /usr/bin/dnf upgrade\\n' | su admin -c 'crontab -'")
+        # seed two managed user jobs with different commands
+        self.seed_managed_crontab("user", lines=["0 4 * * * /usr/bin/uptime", "0 0 * * 1 /usr/bin/dnf upgrade"])
         b.reload()
         b.enter_page("/cron")
         b.wait_visible("#app")
@@ -326,8 +343,8 @@ class TestApplication(testlib.MachineCase):
         b.wait_text(".pf-v6-c-empty-state__body", "No user cron jobs")
         self.assertNotIn("/usr/bin/uptime", m.execute("su admin -c 'crontab -l'", check=False))
 
-        # seed a job and cancel the edit dialog; the job stays unchanged
-        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
+        # seed a managed job and cancel the edit dialog; the job stays unchanged
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 /usr/bin/uptime"])
         b.reload()
         b.enter_page("/cron")
         b.wait_visible("#app")
@@ -366,8 +383,10 @@ class TestApplication(testlib.MachineCase):
         self.login_and_go("/cron")
 
         # seed a realistic crontab with env vars, comments and a non-cron line
+        # around a managed job; the non-job lines are preserved
         content = "SHELL=/bin/sh\\nPATH=/sbin:/bin:/usr/sbin:/usr/bin\\n"
-        content += "# a comment\\n0 4 * * 1 /usr/bin/uptime\\n# not a schedule\\n"
+        content += "# BEGIN COCKPIT-CRON\\n0 4 * * 1 /usr/bin/uptime\\n# END COCKPIT-CRON\\n"
+        content += "# a comment\\n# not a schedule\\n"
         m.execute(f"printf '{content}' | su admin -c 'crontab -'")
         b.reload()
         b.enter_page("/cron")
@@ -375,9 +394,21 @@ class TestApplication(testlib.MachineCase):
         b.click("#cron-level-user")
         b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
 
-        # only the actual job is listed, not env vars or comments
+        # only the managed job is listed, not env vars or comments
         b.wait_count(".pf-v6-c-data-list__item", 1)
         b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+        b.wait_not_present("#cron-import-alert")
+
+        # the non-job lines are preserved after a job edit
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Edit')")
+        b.wait_visible("#cron-command")
+        b.click("#cron-add-submit")
+        b.wait_not_present("#cron-command")
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("SHELL=/bin/sh", output)
+        self.assertIn("# a comment", output)
 
         # clean up the user crontab again
         m.execute("su admin -c 'crontab -r' || true")
@@ -413,7 +444,7 @@ class TestApplication(testlib.MachineCase):
         m.execute("su admin -c 'crontab -r' || true")
         b.click("#cron-level-user")
         b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
-        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 /usr/bin/uptime"])
         b.reload()
         b.enter_page("/cron")
         b.wait_visible("#app")
@@ -438,9 +469,9 @@ class TestApplication(testlib.MachineCase):
         m.execute("su admin -c 'crontab -r' || true")
         m.execute("crontab -u root -r || true")
 
-        # seed one job at each level
-        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
-        m.execute("echo '0 0 * * * /usr/bin/rootjob' | crontab -u root -")
+        # seed one managed job at each level
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 /usr/bin/uptime"])
+        self.seed_managed_crontab("system", lines=["0 0 * * * /usr/bin/rootjob"])
         b.reload()
         b.enter_page("/cron")
         b.wait_visible("#app")
@@ -466,8 +497,8 @@ class TestApplication(testlib.MachineCase):
         # ensure a clean root crontab, also when a previous test run failed
         m.execute("crontab -u root -r || true")
 
-        # seed a root crontab with a job
-        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | crontab -u root -")
+        # seed a managed root crontab with a job
+        self.seed_managed_crontab("system", lines=["0 4 * * 1 /usr/bin/uptime"])
         b.reload()
         b.enter_page("/cron")
         b.wait_visible("#app")
@@ -484,6 +515,323 @@ class TestApplication(testlib.MachineCase):
 
         # clean up the root crontab again
         m.execute("crontab -u root -r || true")
+
+    def testImportAlert(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+
+        # seed a user crontab without delimiters
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+
+        # the unmanaged job is not listed, but the import alert is shown
+        b.wait_text(".pf-v6-c-empty-state__body", "No user cron jobs")
+        b.wait_visible("#cron-import-alert")
+        b.wait_in_text("#cron-import-alert", "1 cron job is not managed by this plugin")
+
+        # importing moves the job into the managed region
+        b.click("#cron-import-jobs")
+        b.wait_not_present("#cron-import-alert")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("# BEGIN COCKPIT-CRON", output)
+        self.assertIn("# END COCKPIT-CRON", output)
+        self.assertIn("0 4 * * 1 /usr/bin/uptime", output)
+        self.assertLess(output.index("0 4 * * 1 /usr/bin/uptime"), output.index("# END COCKPIT-CRON"))
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testImportPreservesOtherLines(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+        m.execute("su admin -c 'crontab -r' || true")
+
+        # seed a crontab without delimiters with jobs, env vars and comments
+        content = "SHELL=/bin/sh\\n# a comment\\n0 4 * * 1 /usr/bin/uptime\\n0 0 * * 1 /usr/bin/dnf upgrade\\n"
+        m.execute(f"printf '{content}' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+
+        b.wait_in_text("#cron-import-alert", "2 cron jobs are not managed by this plugin")
+        b.click("#cron-import-jobs")
+        b.wait_not_present("#cron-import-alert")
+        b.wait_count(".pf-v6-c-data-list__item", 2)
+
+        output = m.execute("su admin -c 'crontab -l'")
+        # env vars and comments stay outside of the managed region
+        self.assertLess(output.index("SHELL=/bin/sh"), output.index("# BEGIN COCKPIT-CRON"))
+        self.assertLess(output.index("# a comment"), output.index("# BEGIN COCKPIT-CRON"))
+        # both jobs moved into the managed region, in their original order
+        self.assertLess(output.index("# BEGIN COCKPIT-CRON"), output.index("/usr/bin/uptime"))
+        self.assertLess(output.index("/usr/bin/uptime"), output.index("# END COCKPIT-CRON"))
+        self.assertLess(output.index("/usr/bin/uptime"), output.index("/usr/bin/dnf upgrade"))
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testImportSystemJob(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean root crontab, also when a previous test run failed
+        m.execute("crontab -u root -r || true")
+
+        # seed a root crontab without delimiters
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | crontab -u root -")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.wait_in_text("#cron-import-alert", "1 cron job is not managed by this plugin")
+
+        b.click("#cron-import-jobs")
+        b.wait_not_present("#cron-import-alert")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        output = m.execute("crontab -u root -l")
+        self.assertIn("# BEGIN COCKPIT-CRON", output)
+        self.assertIn("0 4 * * 1 /usr/bin/uptime", output)
+
+        # clean up the root crontab again
+        m.execute("crontab -u root -r || true")
+
+    def testImportAcrossLevels(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure clean crontabs, also when a previous test run failed
+        m.execute("crontab -u root -r || true")
+        m.execute("su admin -c 'crontab -r' || true")
+
+        # seed one unmanaged job at each level
+        m.execute("echo '0 4 * * 1 /usr/bin/rootjob' | crontab -u root -")
+        m.execute("echo '0 4 * * 1 /usr/bin/userjob' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+
+        # import the system level job
+        b.wait_in_text("#cron-import-alert", "1 cron job is not managed by this plugin")
+        b.click("#cron-import-jobs")
+        b.wait_not_present("#cron-import-alert")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/rootjob")
+
+        # switching to the user level shows an import alert with a usable button,
+        # i.e. it is not stuck in the loading state of the previous import
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_visible("#cron-import-alert")
+        b.wait_in_text("#cron-import-alert", "1 cron job is not managed by this plugin")
+        b.wait_attr("#cron-import-jobs", "disabled", None)
+
+        # the user level jobs can be imported too
+        b.click("#cron-import-jobs")
+        b.wait_not_present("#cron-import-alert")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/userjob")
+
+        # clean up both crontabs again
+        m.execute("crontab -u root -r || true")
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testAddJobPreservesUnmanagedJobs(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+        m.execute("su admin -c 'crontab -r' || true")
+
+        # seed a user crontab without delimiters
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+
+        # adding a job creates a managed region and leaves the existing job alone
+        b.click("#cron-add-job")
+        b.wait_visible("#cron-command")
+        b.select_from_dropdown("#cron-schedule", "@daily")
+        b.set_input_text("#cron-command", "/usr/bin/newjob")
+        b.click("#cron-add-submit")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/newjob")
+
+        # the new job is inside the delimiters, the old one stays outside
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertLess(output.index("0 4 * * 1 /usr/bin/uptime"), output.index("# BEGIN COCKPIT-CRON"))
+        self.assertLess(output.index("# BEGIN COCKPIT-CRON"), output.index("/usr/bin/newjob"))
+        self.assertLess(output.index("/usr/bin/newjob"), output.index("# END COCKPIT-CRON"))
+
+        # the unmanaged job is still offered for import
+        b.wait_visible("#cron-import-alert")
+        b.wait_in_text("#cron-import-alert", "1 cron job is not managed by this plugin")
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testAddJobToExistingRegion(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+        m.execute("su admin -c 'crontab -r' || true")
+
+        # seed a managed region with one job
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 /usr/bin/uptime"])
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # add a second job, it is inserted into the existing managed region
+        b.click("#cron-add-job")
+        b.wait_visible("#cron-command")
+        b.select_from_dropdown("#cron-schedule", "@weekly")
+        b.set_input_text("#cron-command", "/usr/bin/second")
+        b.click("#cron-add-submit")
+        b.wait_count(".pf-v6-c-data-list__item", 2)
+        b.wait_not_present("#cron-import-alert")
+
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertLess(output.index("# BEGIN COCKPIT-CRON"), output.index("/usr/bin/uptime"))
+        self.assertLess(output.index("/usr/bin/uptime"), output.index("/usr/bin/second"))
+        self.assertLess(output.index("/usr/bin/second"), output.index("# END COCKPIT-CRON"))
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testImportPreservesLabelsAndDisabled(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+        m.execute("su admin -c 'crontab -r' || true")
+
+        # seed unmanaged jobs, one labeled and one disabled, without delimiters
+        content = "# @label Daily backup\\n0 4 * * 1 /usr/bin/backup\\n# 0 0 * * 2 /usr/bin/disabled\\n"
+        m.execute(f"printf '{content}' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text("#cron-import-alert", "2 cron jobs are not managed by this plugin")
+
+        b.click("#cron-import-jobs")
+        b.wait_not_present("#cron-import-alert")
+        b.wait_count(".pf-v6-c-data-list__item", 2)
+
+        # the label moved in with its job and the disabled job stays commented
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertLess(output.index("# BEGIN COCKPIT-CRON"), output.index("# @label Daily backup"))
+        self.assertLess(output.index("# @label Daily backup"), output.index("/usr/bin/backup"))
+        self.assertLess(output.index("/usr/bin/backup"), output.index("# 0 0 * * 2 /usr/bin/disabled"))
+        self.assertLess(output.index("# 0 0 * * 2 /usr/bin/disabled"), output.index("# END COCKPIT-CRON"))
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testImportIntoExistingRegion(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+        m.execute("su admin -c 'crontab -r' || true")
+
+        # seed an unmanaged job before and after a managed region
+        content = "0 0 * * 1 /usr/bin/before\\n"
+        content += "# BEGIN COCKPIT-CRON\\n0 4 * * 1 /usr/bin/managed\\n# END COCKPIT-CRON\\n"
+        content += "0 0 * * 2 /usr/bin/after\\n"
+        m.execute(f"printf '{content}' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+
+        # only the managed job is listed, the other two are offered for import
+        b.wait_count(".pf-v6-c-data-list__item", 1)
+        b.wait_in_text("#cron-import-alert", "2 cron jobs are not managed by this plugin")
+
+        b.click("#cron-import-jobs")
+        b.wait_not_present("#cron-import-alert")
+        b.wait_count(".pf-v6-c-data-list__item", 3)
+
+        # all three jobs now live inside the managed region
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertLess(output.index("# BEGIN COCKPIT-CRON"), output.index("/usr/bin/managed"))
+        self.assertLess(output.index("/usr/bin/managed"), output.index("/usr/bin/before"))
+        self.assertLess(output.index("/usr/bin/before"), output.index("/usr/bin/after"))
+        self.assertLess(output.index("/usr/bin/after"), output.index("# END COCKPIT-CRON"))
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testMutationsRespectRegion(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+        m.execute("su admin -c 'crontab -r' || true")
+
+        # seed a managed job inside the region and an unmanaged job outside
+        content = "# BEGIN COCKPIT-CRON\\n0 4 * * 1 /usr/bin/managed\\n# END COCKPIT-CRON\\n"
+        content += "0 0 * * 2 /usr/bin/outside\\n"
+        m.execute(f"printf '{content}' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/managed")
+
+        # toggling the managed job leaves the outside job untouched
+        b.click(".pf-v6-c-data-list__item input[type='checkbox']")
+        b.wait(lambda: "# 0 4 * * 1 /usr/bin/managed" in m.execute("su admin -c 'crontab -l'"))
+        self.assertIn("0 0 * * 2 /usr/bin/outside", m.execute("su admin -c 'crontab -l'"))
+
+        # deleting the managed job leaves the outside job and the markers intact
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Delete')")
+        b.wait_visible("#cron-delete-submit")
+        b.click("#cron-delete-submit")
+        b.wait(lambda: "/usr/bin/managed" not in m.execute("su admin -c 'crontab -l'"))
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("# BEGIN COCKPIT-CRON", output)
+        self.assertIn("# END COCKPIT-CRON", output)
+        self.assertLess(output.index("# BEGIN COCKPIT-CRON"), output.index("# END COCKPIT-CRON"))
+        self.assertIn("0 0 * * 2 /usr/bin/outside", output)
+
+        # the outside job is again offered for import
+        b.wait_text(".pf-v6-c-empty-state__body", "No user cron jobs")
+        b.wait_visible("#cron-import-alert")
+        b.wait_in_text("#cron-import-alert", "1 cron job is not managed by this plugin")
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
 
 
 if __name__ == '__main__':

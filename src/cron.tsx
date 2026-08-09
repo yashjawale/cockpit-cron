@@ -6,7 +6,15 @@
 
 import cockpit from 'cockpit';
 
-import { parseCrontab, type CronJob, type CronLevel } from "./cron-parser";
+import {
+    BEGIN_MARKER,
+    END_MARKER,
+    findManagedRegion,
+    parseCrontab,
+    parseImportableJobs,
+    type CronJob,
+    type CronLevel,
+} from "./cron-parser";
 
 export type { CronJob, CronLevel } from "./cron-parser";
 
@@ -69,22 +77,53 @@ async function writeCrontabContent(level: CronLevel, content: string): Promise<v
 }
 
 /**
- * Read the cron jobs of the given level.
+ * Read the cron jobs of the given level that are managed by this plugin, i.e.
+ * the jobs between the delimiter markers. Jobs outside of the markers are not
+ * reported here, see {@link readImportableJobs}.
  *
  * @param level which set of crontabs to read
- * @returns a promise for the list of found jobs, empty if the crontab does not
- *     exist or crontab is not installed
+ * @returns a promise for the list of managed jobs, empty if the crontab does
+ *     not exist or has no managed region
  */
 export async function readCronJobs(level: CronLevel): Promise<CronJob[]> {
     const content = await readCrontabContent(level);
     const file = level === "system" ? "root crontab" : "user crontab";
-    return parseCrontab(content, file);
+    const region = findManagedRegion(content.split("\n"));
+    if (region === null)
+        return [];
+    return parseCrontab(content, file, region);
+}
+
+/**
+ * Read the cron jobs of the given level that are not managed by this plugin,
+ * i.e. found outside of the delimiter markers.
+ *
+ * @param level which set of crontabs to read
+ * @returns a promise for the list of found importable jobs
+ */
+export async function readImportableJobs(level: CronLevel): Promise<CronJob[]> {
+    const content = await readCrontabContent(level);
+    const file = level === "system" ? "root crontab" : "user crontab";
+    return parseImportableJobs(content, file, findManagedRegion(content.split("\n")));
+}
+
+/**
+ * Append a new managed region, delimited by the begin and end markers, to the
+ * given crontab lines, keeping a trailing empty line if present.
+ */
+function appendManagedRegion(lines: string[], managedLines: string[]): void {
+    const trailing = lines.length > 0 && lines[lines.length - 1] === "" ? lines.pop() : undefined;
+    lines.push(BEGIN_MARKER, ...managedLines, END_MARKER);
+    if (trailing !== undefined)
+        lines.push("");
 }
 
 /**
  * Add a cron job to the crontab of the given level.
  *
- * Appends a new job line to the crontab. Adding system level jobs requires
+ * Inserts the new job into the managed region between the delimiter markers,
+ * creating the region if the crontab has none yet. Existing jobs outside of
+ * the region are left untouched. Adding system level jobs requires
  * administrative access.
  *
  * @param level which set of crontabs to modify
@@ -99,10 +138,59 @@ export async function addCronJob(
     label?: string
 ): Promise<void> {
     const content = await readCrontabContent(level);
+    const lines = content.split("\n");
     const jobLine = `${schedule} ${command}`;
-    const block = label ? `# @label ${label}\n${jobLine}` : jobLine;
-    const newLine = content ? `\n${block}` : block;
-    await writeCrontabContent(level, content + newLine + "\n");
+    const managedLines = label ? [`# @label ${label}`, jobLine] : [jobLine];
+
+    const region = findManagedRegion(lines);
+    if (region !== null)
+        lines.splice(region.end, 0, ...managedLines);
+    else
+        appendManagedRegion(lines, managedLines);
+
+    await writeCrontabContent(level, lines.join("\n"));
+}
+
+/**
+ * Import the cron jobs of the given level that live outside of the managed
+ * region into it, moving their job and label lines between the delimiter
+ * markers.
+ *
+ * Everything that is not a cron job stays in place, so manually maintained
+ * crontab entries are preserved. Importing system level jobs requires
+ * administrative access.
+ *
+ * @param level which set of crontabs to modify
+ */
+export async function importCronJobs(level: CronLevel): Promise<void> {
+    const content = await readCrontabContent(level);
+    const lines = content.split("\n");
+    const file = level === "system" ? "root crontab" : "user crontab";
+
+    const importable = parseImportableJobs(content, file, findManagedRegion(lines));
+    if (importable.length === 0)
+        return;
+
+    // the job and label lines to move into the managed region
+    const move = new Set<number>();
+    importable.forEach(job => {
+        move.add(job.line - 1);
+        if (job.labelLine !== undefined)
+            move.add(job.labelLine - 1);
+    });
+
+    // split the file into the lines that stay outside and the lines that are
+    // moved into the managed region, preserving their relative order
+    const outside = lines.filter((_, index) => !move.has(index));
+    const imported = lines.filter((_, index) => move.has(index));
+
+    const region = findManagedRegion(outside);
+    if (region !== null)
+        outside.splice(region.end, 0, ...imported);
+    else
+        appendManagedRegion(outside, imported);
+
+    await writeCrontabContent(level, outside.join("\n"));
 }
 
 /**
