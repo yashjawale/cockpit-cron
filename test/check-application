@@ -462,9 +462,9 @@ class TestApplication(testlib.MachineCase):
         self.assertIn("# @skipuntil 2030-02-03T09:15", output)
         self.assertNotIn("2030-01-02T12:00", output)
         # count only the marker comment lines, not the resume command text
-        marker_lines = [l for l in output.splitlines() if l.startswith("# @")]
-        self.assertEqual(sum(1 for l in marker_lines if l.startswith("# @token ")), 1)
-        self.assertEqual(sum(1 for l in marker_lines if l.startswith("# @resume ")), 1)
+        marker_lines = [line for line in output.splitlines() if line.startswith("# @")]
+        self.assertEqual(sum(1 for line in marker_lines if line.startswith("# @token ")), 1)
+        self.assertEqual(sum(1 for line in marker_lines if line.startswith("# @resume ")), 1)
         self.assertIn("15 9 3 2 * sh -c", output)
 
         # clean up the user crontab again
