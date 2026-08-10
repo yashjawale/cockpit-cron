@@ -11,6 +11,7 @@ import { AddCronJobDialog } from "./components/AddCronJobDialog";
 import { CronJobsList } from "./components/CronJobsList";
 import { CronJobsToolbar } from "./components/CronJobsToolbar";
 import { DeleteCronJobDialog } from "./components/DeleteCronJobDialog";
+import { ImportCronJobsAlert } from "./components/ImportCronJobsAlert";
 import { PruneLogsDialog } from "./components/PruneLogsDialog";
 import { SkipUntilDialog } from "./components/SkipUntilDialog";
 import type { CronJob, CronLevel } from "./cron";
@@ -40,6 +41,11 @@ export const Application = () => {
 
     return (
         <Page className='pf-m-no-sidebar' isContentFilled>
+            <ImportCronJobsAlert
+                level={level}
+                reload={reload}
+                onImported={() => setReload(reload + 1)}
+            />
             <PageSection className="cron-jobs-toolbar-section">
                 <CronJobsToolbar
                     level={level}

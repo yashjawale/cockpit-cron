@@ -11,6 +11,41 @@
 export type CronLevel = "system" | "user";
 
 /**
+ * Delimiter markers surrounding the region of a crontab that is managed by
+ * this plugin. Only the lines between these markers are modified by the
+ * plugin, everything else is preserved.
+ */
+export const BEGIN_MARKER = "# BEGIN COCKPIT-CRON";
+export const END_MARKER = "# END COCKPIT-CRON";
+
+/**
+ * The region of a crontab managed by this plugin, delimited by the
+ * {@link BEGIN_MARKER} and {@link END_MARKER} lines.
+ */
+export interface ManagedRegion {
+    /** zero based line index of the BEGIN marker line */
+    start: number;
+    /** zero based line index of the END marker line */
+    end: number;
+}
+
+/**
+ * Find the region of a crontab that is managed by this plugin.
+ *
+ * @param lines - the lines of the crontab
+ * @returns the managed region, or null if no delimiter markers exist
+ */
+export function findManagedRegion(lines: string[]): ManagedRegion | null {
+    const start = lines.findIndex(line => line.trim() === BEGIN_MARKER);
+    if (start < 0)
+        return null;
+    const end = lines.findIndex((line, index) => index > start && line.trim() === END_MARKER);
+    if (end < 0)
+        return null;
+    return { start, end };
+}
+
+/**
  * A single cron job as found in a crontab.
  */
 export interface CronJob {
@@ -182,9 +217,11 @@ export function isValidSchedule(schedule: string): boolean {
  *
  * @param content - raw crontab file contents
  * @param file - path of the crontab file, used for job ids
+ * @param region - optional region of the crontab to parse, i.e. the managed
+ *     section; lines outside of it are ignored
  * @returns the list of jobs found in the crontab
  */
-export function parseCrontab(content: string, file: string): CronJob[] {
+export function parseCrontab(content: string, file: string, region?: ManagedRegion): CronJob[] {
     const jobs: CronJob[] = [];
     let pendingLabel: string | undefined;
     let pendingLabelLine = 0;
@@ -194,9 +231,15 @@ export function parseCrontab(content: string, file: string): CronJob[] {
     let skipResume = false;
 
     content.split("\n").forEach((rawLine, index) => {
-        let line = rawLine.trim();
-        if (!line)
+        if (region !== undefined && (index < region.start || index > region.end))
             return;
+
+        let line = rawLine.trim();
+        if (!line) {
+            pendingLabel = undefined;
+            pendingLabelLine = 0;
+            return;
+        }
 
         // a generated resume job that re-enables a skipped job is not listed
         if (skipResume) {
@@ -281,4 +324,24 @@ export function parseCrontab(content: string, file: string): CronJob[] {
     });
 
     return jobs;
+}
+
+/**
+ * Parse the cron jobs of a crontab that live outside of the managed region,
+ * i.e. not between the delimiter markers. Without a managed region every job
+ * is importable.
+ *
+ * The reported line numbers refer to the original crontab contents.
+ *
+ * @param content - raw crontab file contents
+ * @param file - path of the crontab file, used for job ids
+ * @param region - the managed region of the crontab, or null if it has none
+ * @returns the list of jobs found outside of the managed region
+ */
+export function parseImportableJobs(content: string, file: string, region: ManagedRegion | null): CronJob[] {
+    const masked = content.split("\n")
+            .map((line, index) =>
+                region !== null && index >= region.start && index <= region.end ? "" : line)
+            .join("\n");
+    return parseCrontab(masked, file);
 }
