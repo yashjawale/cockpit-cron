@@ -12,7 +12,16 @@ import { CronJobsList } from "./components/CronJobsList";
 import { CronJobsToolbar } from "./components/CronJobsToolbar";
 import { DeleteCronJobDialog } from "./components/DeleteCronJobDialog";
 import { PruneLogsDialog } from "./components/PruneLogsDialog";
+import { SkipUntilDialog } from "./components/SkipUntilDialog";
 import type { CronJob, CronLevel } from "./cron";
+
+/** A job that was just changed, to highlight its row after a reload. */
+interface HighlightedJob {
+    /** stable job key, matching a row after the crontab was rewritten */
+    key: string;
+    /** counter that changes for every highlight, so repeated changes retrigger */
+    tick: number;
+}
 
 /**
  * Top level application component of the Cron jobs module.
@@ -24,6 +33,8 @@ export const Application = () => {
     const [editJob, setEditJob] = useState<CronJob | null>(null);
     const [deleteJob, setDeleteJob] = useState<CronJob | null>(null);
     const [pruneJob, setPruneJob] = useState<CronJob | null>(null);
+    const [skipJob, setSkipJob] = useState<CronJob | null>(null);
+    const [highlight, setHighlight] = useState<HighlightedJob | null>(null);
     const [reload, setReload] = useState(0);
     const [logRefresh, setLogRefresh] = useState(0);
 
@@ -44,9 +55,11 @@ export const Application = () => {
                     filter={filter}
                     reload={reload}
                     logRefresh={logRefresh}
+                    highlight={highlight}
                     onEdit={setEditJob}
                     onDelete={setDeleteJob}
                     onPruneLogs={setPruneJob}
+                    onSkip={setSkipJob}
                     onReload={() => setReload(reload + 1)}
                 />
             </PageSection>
@@ -91,6 +104,21 @@ export const Application = () => {
                         setPruneJob(null);
                         setReload(reload + 1);
                         setLogRefresh(logRefresh + 1);
+                    }}
+                />
+            )}
+            {skipJob !== null && (
+                <SkipUntilDialog
+                    level={level}
+                    job={skipJob}
+                    onClose={() => setSkipJob(null)}
+                    onSaved={() => {
+                        setSkipJob(null);
+                        setHighlight({
+                            key: `${skipJob.schedule} ${skipJob.command}`,
+                            tick: (highlight?.tick ?? 0) + 1
+                        });
+                        setReload(reload + 1);
                     }}
                 />
             )}

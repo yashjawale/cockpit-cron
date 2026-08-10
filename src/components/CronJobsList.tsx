@@ -10,10 +10,18 @@ import { EmptyState, EmptyStateBody } from "@patternfly/react-core/dist/esm/comp
 
 import cockpit from 'cockpit';
 
-import { readCronJobs, setCronJobEnabled, setCronJobLogging, type CronJob, type CronLevel } from "../cron";
+import { readCronJobs, setCronJobEnabled, setCronJobLogging, setCronJobSkipUntil, type CronJob, type CronLevel } from "../cron";
 import { CronJobRow } from "./CronJobRow";
 
 const _ = cockpit.gettext;
+
+/**
+ * A stable identifier of a job, independent of its line in the crontab, so
+ * that a job can be recognized again after its skip markers shifted the lines.
+ */
+function jobKey(job: CronJob): string {
+    return `${job.schedule} ${job.command}`;
+}
 
 /**
  * Props for the {@link CronJobsList} component.
@@ -27,12 +35,16 @@ export interface CronJobsListProps {
     reload: number;
     /** a counter that triggers a reload of the expanded job logs when incremented */
     logRefresh: number;
+    /** the job that was just changed from outside, to highlight its row */
+    highlight: { key: string, tick: number } | null;
     /** callback invoked when the user wants to edit a job */
     onEdit: (job: CronJob) => void;
     /** callback invoked when the user wants to delete a job */
     onDelete: (job: CronJob) => void;
     /** callback invoked when the user wants to prune a job's logs */
     onPruneLogs: (job: CronJob) => void;
+    /** callback invoked when the user wants to skip a job until a date */
+    onSkip: (job: CronJob) => void;
     /** callback invoked after a change that needs the job list reloaded */
     onReload: () => void;
 }
@@ -43,7 +55,7 @@ export interface CronJobsListProps {
  * The jobs are read from the system whenever the level changes and rendered
  * as rows with a loading and an empty state.
  */
-export const CronJobsList = ({ level, filter, reload, logRefresh, onEdit, onDelete, onPruneLogs, onReload }: CronJobsListProps) => {
+export const CronJobsList = ({ level, filter, reload, logRefresh, highlight, onEdit, onDelete, onPruneLogs, onSkip, onReload }: CronJobsListProps) => {
     const [jobs, setJobs] = useState<CronJob[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -72,6 +84,28 @@ export const CronJobsList = ({ level, filter, reload, logRefresh, onEdit, onDele
 
     // toggle the enabled state optimistically and persist it in the background
     const toggleEnabled = (job: CronJob, enabled: boolean) => {
+        // enabling a skipped job resumes it and clears its skip state
+        if (job.skipUntil !== undefined) {
+            if (enabled) {
+                setJobs(current => current.map(candidate => {
+                    if (candidate.id !== job.id)
+                        return candidate;
+                    const resumed = { ...candidate, enabled: true };
+                    delete resumed.skipUntil;
+                    delete resumed.skipToken;
+                    return resumed;
+                }));
+
+                setCronJobSkipUntil(level, job, null)
+                        .catch(() => {
+                            // revert the optimistic update on failure
+                            setJobs(current => current.map(
+                                candidate => candidate.id === job.id ? { ...candidate, enabled: false } : candidate));
+                        });
+            }
+            return;
+        }
+
         setJobs(current => current.map(
             candidate => candidate.id === job.id ? { ...candidate, enabled } : candidate));
 
@@ -120,7 +154,10 @@ export const CronJobsList = ({ level, filter, reload, logRefresh, onEdit, onDele
                                 onToggleLogging={toggleLogging}
                                 onPruneLogs={onPruneLogs}
                                 logRefresh={logRefresh}
+                                onSkip={onSkip}
                                 onToggleEnabled={toggleEnabled}
+                                highlight={highlight !== null && jobKey(job) === highlight.key}
+                                highlightTick={highlight?.tick ?? 0}
                             />
                         ))}
                     </DataList>
