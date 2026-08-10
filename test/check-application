@@ -4,7 +4,13 @@
 # See https://github.com/cockpit-project/cockpit/blob/main/test/common/testlib.py
 # "class Browser" and "class MachineCase" for the available API.
 
+import re
+
 import testlib
+
+# the kebab menu of a job row; when logging is enabled the row also has a
+# separate logs button which is a menu toggle as well, so select by aria label
+KEBAB = ".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle[aria-label='Job actions']"
 
 
 # Nondestructive tests all run in the same running VM. This allows them to run in Packit, Fedora, and
@@ -818,6 +824,174 @@ class TestApplication(testlib.MachineCase):
 
         # clean up the root crontab again
         m.execute("crontab -u root -r || true")
+
+    def testEnableLogging(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # enable logging from the kebab menu
+        b.click(KEBAB)
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Enable logging')")
+
+        # the crontab gets a "@log" comment and the command is wrapped so that
+        # its output is redirected to the log file
+        b.wait(lambda: "@log" in m.execute("su admin -c 'crontab -l'"))
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("# @log ", output)
+        self.assertIn("=== run $(date -Iseconds) ===", output)
+        self.assertIn("2>&1", output)
+        self.assertNotIn("0 4 * * 1 /usr/bin/uptime", output)
+
+        # the row now offers a logs button
+        b.wait_visible(".cron-job-logs-toggle")
+
+        # clean up the user crontab and log directory again
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+
+    def testViewLogs(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # enable logging and seed a log file with two runs on the same day
+        b.click(KEBAB)
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Enable logging')")
+        b.wait_visible(".cron-job-logs-toggle")
+
+        output = m.execute("su admin -c 'crontab -l'")
+        logpath = re.search(r"# @log (\S+)", output).group(1)
+        log_content = ("=== run 2026-08-09T10:00:00+00:00 ===\\nhello from run one\\n"
+                       "=== run 2026-08-09T11:30:00+00:00 ===\\nhello from run two\\n")
+        m.execute(f"su admin -c 'printf \"{log_content}\" > {logpath}'")
+        self.assertTrue(m.execute(f"su admin -c 'test -e {logpath}'") == "")
+
+        # expanding the row shows the log viewer with the two runs
+        b.click(".cron-job-logs-toggle")
+        b.wait_visible(".cron-log-viewer")
+        b.wait_visible(".cron-log-calendar-dot")
+        b.wait_count(".cron-log-runs button", 2)
+
+        # the latest run is selected by default, its output is shown
+        b.wait_in_text(".cron-log-output", "hello from run two")
+
+        # selecting the first run in the list shows its output
+        b.click(".cron-log-runs .pf-v6-c-menu__list-item:first-child button")
+        b.wait_in_text(".cron-log-output", "hello from run one")
+
+        # clean up the user crontab and log directory again
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+
+    def testDisableLogging(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # enable logging first
+        b.click(KEBAB)
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Enable logging')")
+        b.wait_visible(".cron-job-logs-toggle")
+
+        # disable logging again from the kebab menu
+        b.click(KEBAB)
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Disable logging')")
+
+        # the original command is restored and the markers are gone
+        b.wait(lambda: "@log" not in m.execute("su admin -c 'crontab -l'"))
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("0 4 * * 1 /usr/bin/uptime", output)
+        self.assertNotIn("=== run $(date -Iseconds) ===", output)
+        self.assertNotIn("2>&1", output)
+
+        # the logs button disappears
+        b.wait_not_present(".cron-job-logs-toggle")
+
+        # clean up the user crontab and log directory again
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+
+    def testPruneLogs(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+        m.execute("echo '0 4 * * 1 /usr/bin/uptime' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # enable logging and write something to the log file
+        b.click(KEBAB)
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Enable logging')")
+        b.wait_visible(".cron-job-logs-toggle")
+        output = m.execute("su admin -c 'crontab -l'")
+        logpath = re.search(r"# @log (\S+)", output).group(1)
+        m.execute(f"su admin -c 'printf \"some log output\\n\" > {logpath}'")
+        self.assertTrue(m.execute(f"su admin -c 'test -e {logpath}'") == "")
+
+        # prune the logs from the kebab menu and confirm
+        b.click(KEBAB)
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Prune logs')")
+        b.wait_visible("#cron-prune-submit")
+        b.click("#cron-prune-submit")
+
+        # the log file is gone
+        b.wait(lambda: m.execute(f"su admin -c 'test ! -e {logpath}'") == "")
+
+        # clean up the user crontab and log directory again
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
 
 
 if __name__ == '__main__':
