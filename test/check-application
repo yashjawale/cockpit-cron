@@ -4,7 +4,13 @@
 # See https://github.com/cockpit-project/cockpit/blob/main/test/common/testlib.py
 # "class Browser" and "class MachineCase" for the available API.
 
+import re
+
 import testlib
+
+# the kebab menu of a job row; when logging is enabled the row also has a
+# separate logs button which is a menu toggle as well, so select by aria label
+KEBAB = ".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle[aria-label='Job actions']"
 
 
 # Nondestructive tests all run in the same running VM. This allows them to run in Packit, Fedora, and
@@ -224,6 +230,340 @@ class TestApplication(testlib.MachineCase):
         self.assertIn("# BEGIN COCKPIT-CRON", output)
         self.assertIn("# END COCKPIT-CRON", output)
         self.assertLess(output.index("# BEGIN COCKPIT-CRON"), output.index("# END COCKPIT-CRON"))
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testSkipUntil(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+
+        # seed a user job
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 /usr/bin/uptime"])
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # open the skip dialog from the kebab menu and pick a future time
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+        b.set_input_text("#cron-skip-date", "2030-01-02")
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+        b.click("#cron-skip-submit")
+
+        # the job row is highlighted and shows the skip indicator, and the
+        # resume job is not listed
+        b.wait_attr_contains(".pf-v6-c-data-list__item", "class", "ct-new-item")
+        b.wait_in_text(".pf-v6-c-data-list__item", "Skipped until")
+        b.wait_count(".pf-v6-c-data-list__item", 1)
+
+        # the crontab comments the job out and stores the markers plus a
+        # resume job that runs at the chosen time
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("# @skipuntil 2030-01-02T12:00", output)
+        self.assertIn("# @token ", output)
+        self.assertIn("# @resume ", output)
+        self.assertIn("# 0 4 * * 1 /usr/bin/uptime", output)
+        self.assertIn("0 12 2 1 * sh -c", output)
+
+        # resume the job again from the dialog
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-resume")
+        b.click("#cron-skip-resume")
+
+        # the indicator is gone and the job runs again without any skip markers
+        b.wait_not_in_text(".pf-v6-c-data-list__item", "Skipped until")
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("0 4 * * 1 /usr/bin/uptime", output)
+        self.assertNotIn("@skipuntil", output)
+        self.assertNotIn("@token", output)
+        self.assertNotIn("@resume", output)
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testSkipUntilToggleResume(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 /usr/bin/uptime"])
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # skip the job via the dialog
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+        b.set_input_text("#cron-skip-date", "2030-01-02")
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+        b.click("#cron-skip-submit")
+        b.wait_in_text(".pf-v6-c-data-list__item", "Skipped until")
+        self.assertIn("# @skipuntil 2030-01-02T12:00", m.execute("su admin -c 'crontab -l'"))
+
+        # flipping the disabled switch on resumes the job and clears the skip
+        b.click(".pf-v6-c-data-list__item input[type='checkbox']")
+        b.wait_not_in_text(".pf-v6-c-data-list__item", "Skipped until")
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("0 4 * * 1 /usr/bin/uptime", output)
+        self.assertNotIn("@skipuntil", output)
+        self.assertNotIn("@token", output)
+        self.assertNotIn("@resume", output)
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testDeleteSkippedJob(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 /usr/bin/uptime"])
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # skip the job via the dialog
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+        b.set_input_text("#cron-skip-date", "2030-01-02")
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+        b.click("#cron-skip-submit")
+        b.wait_in_text(".pf-v6-c-data-list__item", "Skipped until")
+
+        # deleting a skipped job removes the markers and the resume job too
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Delete')")
+        b.wait_visible("#cron-delete-submit")
+        b.click("#cron-delete-submit")
+
+        b.wait_text(".pf-v6-c-empty-state__body", "No user cron jobs")
+        output = m.execute("su admin -c 'crontab -l'", check=False)
+        self.assertNotIn("uptime", output)
+        self.assertNotIn("@skipuntil", output)
+        self.assertNotIn("@token", output)
+        self.assertNotIn("@resume", output)
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testEditSkippedJob(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 /usr/bin/uptime"])
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # skip the job first
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+        b.set_input_text("#cron-skip-date", "2030-01-02")
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+        b.click("#cron-skip-submit")
+        b.wait_in_text(".pf-v6-c-data-list__item", "Skipped until")
+
+        # editing a skipped job keeps it skipped with the new content
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Edit')")
+        b.wait_visible("#cron-command")
+        b.set_input_text("#cron-schedule-custom", "0 0 * * *")
+        b.set_input_text("#cron-command", "/usr/bin/uptime --new")
+        b.set_input_text("#cron-label", "New label")
+        b.click("#cron-add-submit")
+
+        b.wait_in_text(".pf-v6-c-data-list__item", "Skipped until")
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("# @skipuntil 2030-01-02T12:00", output)
+        self.assertIn("# 0 0 * * * /usr/bin/uptime --new", output)
+        self.assertIn("# @label New label", output)
+        self.assertIn("# @resume ", output)
+
+        # resuming the edited job restores it cleanly
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-resume")
+        b.click("#cron-skip-resume")
+        b.wait_not_in_text(".pf-v6-c-data-list__item", "Skipped until")
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("0 0 * * * /usr/bin/uptime --new", output)
+        self.assertNotIn("@skipuntil", output)
+        self.assertNotIn("@resume", output)
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testSkipUntilChangeTime(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 /usr/bin/uptime"])
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # skip the job until a first time
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+        b.set_input_text("#cron-skip-date", "2030-01-02")
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+        b.click("#cron-skip-submit")
+        b.wait_in_text(".pf-v6-c-data-list__item", "Skipped until")
+
+        # the dialog pre-fills the current skip time; change it to a new time
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+        b.wait_val("#cron-skip-date", "2030-01-02")
+        b.set_input_text("#cron-skip-date", "2030-02-03")
+        b.set_input_text("#cron-skip-time", "09:15")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+        b.click("#cron-skip-submit")
+
+        # exactly one skip state remains, updated to the new time
+        b.wait_in_text(".pf-v6-c-data-list__item", "Skipped until")
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("# @skipuntil 2030-02-03T09:15", output)
+        self.assertNotIn("2030-01-02T12:00", output)
+        # count only the marker comment lines, not the resume command text
+        marker_lines = [line for line in output.splitlines() if line.startswith("# @")]
+        self.assertEqual(sum(1 for line in marker_lines if line.startswith("# @token ")), 1)
+        self.assertEqual(sum(1 for line in marker_lines if line.startswith("# @resume ")), 1)
+        self.assertIn("15 9 3 2 * sh -c", output)
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testSkipSystemJob(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean root crontab, also when a previous test run failed
+        m.execute("crontab -u root -r || true")
+        self.seed_managed_crontab("system", lines=["0 4 * * 1 /usr/bin/uptime"])
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # skip the system job via the dialog
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+        b.set_input_text("#cron-skip-date", "2030-01-02")
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+        b.click("#cron-skip-submit")
+
+        # the root crontab gets the markers and the resume job
+        b.wait_in_text(".pf-v6-c-data-list__item", "Skipped until")
+        output = m.execute("crontab -u root -l")
+        self.assertIn("# @skipuntil 2030-01-02T12:00", output)
+        self.assertIn("# @resume ", output)
+        self.assertIn("0 12 2 1 * sh -c", output)
+
+        # resuming via the switch restores the root job
+        b.click(".pf-v6-c-data-list__item input[type='checkbox']")
+        b.wait_not_in_text(".pf-v6-c-data-list__item", "Skipped until")
+        output = m.execute("crontab -u root -l")
+        self.assertIn("0 4 * * 1 /usr/bin/uptime", output)
+        self.assertNotIn("@skipuntil", output)
+
+        # clean up the root crontab again
+        m.execute("crontab -u root -r || true")
+
+    def testSkipUntilValidation(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 /usr/bin/uptime"])
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+
+        # a past date or a malformed time keeps the submit disabled
+        b.set_input_text("#cron-skip-date", "2000-01-01")
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", "")
+
+        b.set_input_text("#cron-skip-date", "2030-01-02")
+        b.set_input_text("#cron-skip-time", "99:99")
+        b.wait_attr("#cron-skip-submit", "disabled", "")
+
+        # a valid future time enables it again
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
 
         # clean up the user crontab again
         m.execute("su admin -c 'crontab -r' || true")
@@ -514,8 +854,6 @@ class TestApplication(testlib.MachineCase):
         b.wait(lambda: "0 4 * * 1 /usr/bin/uptime" in m.execute("crontab -u root -l"))
 
         # clean up the root crontab again
-        m.execute("crontab -u root -r || true")
-
     def testImportAlert(self):
         b = self.browser
         m = self.machine
@@ -872,5 +1210,174 @@ class TestApplication(testlib.MachineCase):
         m.execute("su admin -c 'crontab -r' || true")
 
 
+    def testEnableLogging(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 /usr/bin/uptime"])
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # enable logging from the kebab menu
+        b.click(KEBAB)
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Enable logging')")
+
+        # the crontab gets a "@log" comment and the command is wrapped so that
+        # its output is redirected to the log file
+        b.wait(lambda: "@log" in m.execute("su admin -c 'crontab -l'"))
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("# @log ", output)
+        self.assertIn("=== run $(date -Iseconds) ===", output)
+        self.assertIn("2>&1", output)
+        self.assertNotIn("0 4 * * 1 /usr/bin/uptime", output)
+
+        # the row now offers a logs button
+        b.wait_visible(".cron-job-logs-toggle")
+
+        # clean up the user crontab and log directory again
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+
+    def testViewLogs(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 /usr/bin/uptime"])
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # enable logging and seed a log file with two runs on the same day
+        b.click(KEBAB)
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Enable logging')")
+        b.wait_visible(".cron-job-logs-toggle")
+
+        output = m.execute("su admin -c 'crontab -l'")
+        logpath = re.search(r"# @log (\S+)", output).group(1)
+        log_content = ("=== run 2026-08-09T10:00:00+00:00 ===\\nhello from run one\\n"
+                       "=== run 2026-08-09T11:30:00+00:00 ===\\nhello from run two\\n")
+        m.execute(f"su admin -c 'printf \"{log_content}\" > {logpath}'")
+        self.assertTrue(m.execute(f"su admin -c 'test -e {logpath}'") == "")
+
+        # expanding the row shows the log viewer with the two runs
+        b.click(".cron-job-logs-toggle")
+        b.wait_visible(".cron-log-viewer")
+        b.wait_visible(".cron-log-calendar-dot")
+        b.wait_count(".cron-log-runs button", 2)
+
+        # the latest run is selected by default, its output is shown
+        b.wait_in_text(".cron-log-output", "hello from run two")
+
+        # selecting the first run in the list shows its output
+        b.click(".cron-log-runs .pf-v6-c-menu__list-item:first-child button")
+        b.wait_in_text(".cron-log-output", "hello from run one")
+
+        # clean up the user crontab and log directory again
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+
+    def testDisableLogging(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 /usr/bin/uptime"])
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # enable logging first
+        b.click(KEBAB)
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Enable logging')")
+        b.wait_visible(".cron-job-logs-toggle")
+
+        # disable logging again from the kebab menu
+        b.click(KEBAB)
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Disable logging')")
+
+        # the original command is restored and the markers are gone
+        b.wait(lambda: "@log" not in m.execute("su admin -c 'crontab -l'"))
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn("0 4 * * 1 /usr/bin/uptime", output)
+        self.assertNotIn("=== run $(date -Iseconds) ===", output)
+        self.assertNotIn("2>&1", output)
+
+        # the logs button disappears
+        b.wait_not_present(".cron-job-logs-toggle")
+
+        # clean up the user crontab and log directory again
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+
+    def testPruneLogs(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 /usr/bin/uptime"])
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # enable logging and write something to the log file
+        b.click(KEBAB)
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Enable logging')")
+        b.wait_visible(".cron-job-logs-toggle")
+        output = m.execute("su admin -c 'crontab -l'")
+        logpath = re.search(r"# @log (\S+)", output).group(1)
+        m.execute(f"su admin -c 'printf \"some log output\\n\" > {logpath}'")
+        self.assertTrue(m.execute(f"su admin -c 'test -e {logpath}'") == "")
+
+        # prune the logs from the kebab menu and confirm
+        b.click(KEBAB)
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Prune logs')")
+        b.wait_visible("#cron-prune-submit")
+        b.click("#cron-prune-submit")
+
+        # the log file is gone
+        b.wait(lambda: m.execute(f"su admin -c 'test ! -e {logpath}'") == "")
+
+        # clean up the user crontab and log directory again
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+
 if __name__ == '__main__':
     testlib.test_main()
+

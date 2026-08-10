@@ -108,41 +108,15 @@ export async function readImportableJobs(level: CronLevel): Promise<CronJob[]> {
 }
 
 /**
- * Serialize the given managed jobs into crontab lines, surrounding each job
- * entry and the delimiter markers with blank lines for readability.
+ * Append a new managed region, delimited by the begin and end markers, to the
+ * given crontab lines, with the given job entry separated from the markers by
+ * blank lines. A trailing empty line of the file is preserved.
  */
-function serializeJobs(jobs: CronJob[]): string[] {
-    if (jobs.length === 0)
-        return [];
-    return [
-        "",
-        ...jobs.flatMap(job => [
-            ...(job.label !== undefined ? [`# @label ${job.label}`] : []),
-            `${job.enabled ? "" : "# "}${job.schedule} ${job.command}`,
-            "",
-        ]),
-    ];
-}
-
-/**
- * Replace the managed region of the given crontab lines with the given jobs,
- * creating the region at the end of the file if the crontab has none yet.
- *
- * Everything outside of the region is left untouched. A trailing empty line of
- * the file is preserved.
- */
-function setManagedRegion(lines: string[], jobs: CronJob[]): string[] {
-    const body = serializeJobs(jobs);
-    const region = findManagedRegion(lines);
-    if (region !== null) {
-        lines.splice(region.start + 1, region.end - region.start - 1, ...body);
-    } else if (jobs.length > 0) {
-        const trailing = lines.length > 0 && lines[lines.length - 1] === "" ? lines.pop() : undefined;
-        lines.push(BEGIN_MARKER, ...body, END_MARKER);
-        if (trailing !== undefined)
-            lines.push("");
-    }
-    return lines;
+function appendManagedRegion(lines: string[], entry: string[]): void {
+    const trailing = lines.length > 0 && lines[lines.length - 1] === "" ? lines.pop() : undefined;
+    lines.push(BEGIN_MARKER, "", ...entry, "", END_MARKER);
+    if (trailing !== undefined)
+        lines.push("");
 }
 
 /**
@@ -166,21 +140,15 @@ export async function addCronJob(
 ): Promise<void> {
     const content = await readCrontabContent(level);
     const lines = content.split("\n");
-    const file = level === "system" ? "root crontab" : "user crontab";
+    const entry = label ? [`# @label ${label}`, `${schedule} ${command}`] : [`${schedule} ${command}`];
 
     const region = findManagedRegion(lines);
-    const managed = region !== null ? parseCrontab(content, file, region) : [];
-    managed.push({
-        id: `${file}:new`,
-        file,
-        schedule,
-        command,
-        enabled: true,
-        line: 0,
-        ...(label ? { label } : {})
-    });
+    if (region !== null)
+        lines.splice(region.end, 0, ...entry, "");
+    else
+        appendManagedRegion(lines, entry);
 
-    await writeCrontabContent(level, setManagedRegion(lines, managed).join("\n"));
+    await writeCrontabContent(level, lines.join("\n"));
 }
 
 /**
@@ -204,43 +172,31 @@ export async function importCronJobs(level: CronLevel): Promise<void> {
     if (importable.length === 0)
         return;
 
-    // the job and label lines to move into the managed region
+    // the lines that belong to the importable jobs, including their labels,
+    // skip markers and generated resume jobs
     const move = new Set<number>();
     importable.forEach(job => {
-        move.add(job.line - 1);
-        if (job.labelLine !== undefined)
-            move.add(job.labelLine - 1);
+        jobEntryIndexes(lines, job).forEach(index => move.add(index));
     });
 
-    // split the file into the lines that stay outside and the lines that are
-    // moved into the managed region, preserving their relative order
+    // the lines that stay outside of the managed region
     const outside = lines.filter((_, index) => !move.has(index));
 
-    // merge the imported jobs into the managed jobs of the region
-    const managed = region !== null ? parseCrontab(content, file, region) : [];
-    const merged = [...managed, ...importable];
-    await writeCrontabContent(level, setManagedRegion(outside, merged).join("\n"));
-}
+    // the job entry lines moved into the region, separated by blank lines
+    const block: string[] = [];
+    importable.forEach((job, jobIndex) => {
+        jobEntryIndexes(lines, job).forEach(index => block.push(lines[index]));
+        if (jobIndex < importable.length - 1)
+            block.push("");
+    });
 
-/**
- * Delete a cron job from the crontab of the given level.
- *
- * Removes the job from the managed region, rewriting the region so that the
- * delimiter formatting stays intact. Deleting system level jobs requires
- * administrative access.
- *
- * @param level which set of crontabs to modify
- * @param job the job to remove
- */
-export async function deleteCronJob(level: CronLevel, job: CronJob): Promise<void> {
-    const content = await readCrontabContent(level);
-    const lines = content.split("\n");
-    const file = level === "system" ? "root crontab" : "user crontab";
+    const outsideRegion = findManagedRegion(outside);
+    if (outsideRegion !== null)
+        outside.splice(outsideRegion.end, 0, ...block, "");
+    else
+        appendManagedRegion(outside, block);
 
-    const region = findManagedRegion(lines);
-    const managed = region !== null ? parseCrontab(content, file, region) : [];
-    const remaining = managed.filter(candidate => candidate.id !== job.id);
-    await writeCrontabContent(level, setManagedRegion(lines, remaining).join("\n"));
+    await writeCrontabContent(level, outside.join("\n"));
 }
 
 /**
@@ -248,6 +204,153 @@ export async function deleteCronJob(level: CronLevel, job: CronJob): Promise<voi
  */
 function isCommented(line: string): boolean {
     return line.trim().startsWith("#");
+}
+
+/**
+ * The zero based line indexes of the given job's entry, i.e. its job line,
+ * its label comment, and for a skipped job its skip markers and generated
+ * resume job.
+ *
+ * @param lines - the crontab lines
+ * @param job - the job to look up
+ * @returns the line indexes of the job entry, in ascending order
+ */
+function jobEntryIndexes(lines: string[], job: CronJob): number[] {
+    const indexes: number[] = [];
+
+    const jobIndex = findJobLine(lines, job);
+    if (jobIndex !== -1)
+        indexes.push(jobIndex);
+    const labelIndex = findLabelLine(lines, job);
+    if (labelIndex !== -1)
+        indexes.push(labelIndex);
+
+    if (job.skipToken !== undefined) {
+        for (let i = 0; i < lines.length; i++) {
+            const trimmed = lines[i].trim();
+            if (trimmed === `# @token ${job.skipToken}`) {
+                indexes.push(i);
+                if (lines[i - 1]?.trim().startsWith("# @skipuntil "))
+                    indexes.push(i - 1);
+            }
+            if (trimmed === `# @resume ${job.skipToken}`) {
+                indexes.push(i);
+                if (i + 1 < lines.length)
+                    indexes.push(i + 1);
+            }
+        }
+    }
+
+    return indexes.sort((a, b) => a - b);
+}
+
+/**
+ * Find the line a job was parsed from, regardless of whether it is commented
+ * out or had its skip markers removed. Falls back to matching by content, so
+ * it also finds jobs whose line numbers shifted since the last parse.
+ *
+ * @param lines - the crontab lines
+ * @param job - the job to look up
+ * @returns the zero based index of the job line, or -1 if it was not found
+ */
+function findJobLine(lines: string[], job: CronJob): number {
+    const target = `${job.schedule} ${job.command}`;
+    for (let i = 0; i < lines.length; i++) {
+        if (lines[i].replace(/^#+\s*/, "") === target)
+            return i;
+    }
+    return -1;
+}
+
+/**
+ * Find the "@label" comment directly above a job line, skipping over any
+ * skip markers in between.
+ *
+ * @param lines - the crontab lines
+ * @param job - the job to look up
+ * @returns the zero based index of the label comment, or -1 if there is none
+ */
+function findLabelLine(lines: string[], job: CronJob): number {
+    const jobIndex = findJobLine(lines, job);
+    if (jobIndex === -1)
+        return -1;
+
+    for (let i = jobIndex - 1; i >= 0; i--) {
+        const trimmed = lines[i].trim();
+        if (trimmed === `# @label ${job.label}`)
+            return i;
+        if (trimmed.startsWith("# @skipuntil ") || trimmed.startsWith("# @token "))
+            continue;
+        break;
+    }
+    return -1;
+}
+
+/**
+ * Remove the skip state of a job: its "@skipuntil" and "@token" markers, the
+ * generated resume job with its marker, and the comment that disables the job.
+ *
+ * @param lines - the crontab lines
+ * @param job - the skipped job
+ * @returns the lines without the skip state
+ */
+function removeSkipState(lines: string[], job: CronJob): string[] {
+    const token = job.skipToken;
+    if (token === undefined)
+        return lines;
+
+    const remove = new Set<number>();
+    for (let i = 0; i < lines.length; i++) {
+        const trimmed = lines[i].trim();
+        if (trimmed === `# @token ${token}`) {
+            remove.add(i);
+            if (lines[i - 1]?.trim().startsWith("# @skipuntil "))
+                remove.add(i - 1);
+        }
+        if (trimmed === `# @resume ${token}`) {
+            remove.add(i);
+            if (i + 1 < lines.length)
+                remove.add(i + 1);
+        }
+    }
+
+    [...remove].sort((a, b) => b - a).forEach(i => lines.splice(i, 1));
+
+    const jobIndex = findJobLine(lines, job);
+    if (jobIndex !== -1 && isCommented(lines[jobIndex]))
+        lines[jobIndex] = lines[jobIndex].replace(/^#+\s*/, "");
+    return lines;
+}
+
+/**
+ * Delete a cron job from the crontab of the given level.
+ *
+ * Removes the line the job was parsed from, its label comment, and any skip
+ * state including the generated resume job. One adjacent blank line that
+ * separated the job entry is dropped as well. Deleting system level jobs
+ * requires administrative access.
+ *
+ * @param level which set of crontabs to modify
+ * @param job the job to remove
+ */
+export async function deleteCronJob(level: CronLevel, job: CronJob): Promise<void> {
+    const content = await readCrontabContent(level);
+    const lines = content.split("\n");
+
+    const remove = new Set<number>(jobEntryIndexes(lines, job));
+
+    // also drop one adjacent blank line that separated the job entry
+    if (remove.size > 0) {
+        const top = Math.min(...remove);
+        const bottom = Math.max(...remove);
+        if (lines[bottom + 1]?.trim() === "")
+            remove.add(bottom + 1);
+        else if (lines[top - 1]?.trim() === "")
+            remove.add(top - 1);
+    }
+
+    [...remove].sort((a, b) => b - a).forEach(i => lines.splice(i, 1));
+    await writeCrontabContent(level, lines.join("\n"));
 }
 
 /**
@@ -311,4 +414,302 @@ export async function updateCronJob(
     }
 
     await writeCrontabContent(level, lines.join("\n"));
+}
+
+/**
+ * A single run of a cron job, as found in its log file.
+ */
+export interface CronRun {
+    /** unique id for react keys */
+    id: string;
+    /** ISO timestamp of when the run started */
+    timestamp: string;
+    /** the raw output the run produced */
+    output: string;
+}
+
+/**
+ * Generate a short unique token identifying a job's log file.
+ */
+function newLogToken(): string {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36);
+    return timestamp + random.slice(2, 8);
+}
+
+/**
+ * Generate a short unique token linking a skipped job to its resume job.
+ */
+function newSkipToken(): string {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36);
+    return timestamp + random.slice(2, 8);
+}
+
+/**
+ * Escape a command so that it can be embedded into a single quoted shell
+ * argument of a wrapping "sh -c" invocation.
+ *
+ * @param command the command to escape
+ */
+function escapeSh(command: string): string {
+    return command.replace(/'/g, "'\\''");
+}
+
+/**
+ * Undo the escaping done by {@link escapeSh}.
+ *
+ * @param command the escaped command
+ */
+function unescapeSh(command: string): string {
+    return command.replace(/'\\''/g, "'");
+}
+
+/**
+ * The shell fragment that prefixes each run in a log file with a marker line
+ * carrying an ISO timestamp, e.g. "=== run 2026-08-09T10:00:00+00:00 ===".
+ * Uses "date -Iseconds" so that no "%" characters end up in the crontab,
+ * which cron would otherwise convert into newlines.
+ */
+const LOG_RUN_MARKER = 'echo "=== run $(date -Iseconds) ==="';
+
+/**
+ * Wrap a cron job command so that all of its output is appended to the given
+ * log file, with a marker line identifying each individual run.
+ *
+ * @param command the original command
+ * @param logFile the path of the log file
+ * @returns the wrapped command to store in the crontab
+ */
+export function loggingCommand(command: string, logFile: string): string {
+    return `/bin/sh -c '${LOG_RUN_MARKER}; ${escapeSh(command)}' >> ${logFile} 2>&1`;
+}
+
+/**
+ * Extract the original command from a command that was wrapped by
+ * {@link loggingCommand}, or return the command unchanged if it was not
+ * wrapped.
+ *
+ * @param command the command as stored in the crontab
+ * @returns the original command
+ */
+export function unwrapLoggingCommand(command: string): string {
+    const match = command.match(/^\/bin\/sh -c 'echo "=== run \$\(date -Iseconds\) ==="; (.+)' >> \S+ 2>&1$/);
+    if (match === null)
+        return command;
+    return unescapeSh(match[1]);
+}
+
+/**
+ * The directory that holds the log files of cron jobs for the given level.
+ *
+ * @param level which set of crontabs the jobs belong to
+ */
+async function logDirectory(level: CronLevel): Promise<string> {
+    if (level === "system")
+        return "/var/log/cockpit-cron";
+    const user = await cockpit.user();
+    return `${user.home}/.cache/cockpit-cron`;
+}
+
+/**
+ * The spawn options for touching files of the given level. System level log
+ * files live under /var/log and require administrative access.
+ *
+ * @param level which set of crontabs the jobs belong to
+ */
+function logSpawnOptions(level: CronLevel): { superuser?: "require" } {
+    return level === "system" ? { superuser: "require" } : {};
+}
+
+/**
+ * Enable or disable logging of a cron job's output into a log file.
+ *
+ * Enabling wraps the job's command so that its output is appended to a log
+ * file, with a marker line identifying each run, and stores the file path in
+ * a "@log" comment above the job. Disabling removes the comment and restores
+ * the original command. Modifying system level jobs requires administrative
+ * access.
+ *
+ * @param level which set of crontabs to modify
+ * @param job the job to enable or disable logging for
+ * @param enabled whether logging should be enabled
+ */
+export async function setCronJobLogging(level: CronLevel, job: CronJob, enabled: boolean): Promise<void> {
+    const content = await readCrontabContent(level);
+    const lines = content.split("\n");
+    const jobIndex = job.line - 1;
+    const commentPrefix = isCommented(lines[jobIndex]) ? "# " : "";
+
+    if (enabled) {
+        const token = newLogToken();
+        const dir = await logDirectory(level);
+        const logFile = `${dir}/${token}.log`;
+        await cockpit.spawn(["mkdir", "-p", dir], logSpawnOptions(level));
+        lines[jobIndex] = commentPrefix + `${job.schedule} ${loggingCommand(job.command, logFile)}`;
+        lines.splice(jobIndex, 0, `# @log ${logFile}`);
+    } else {
+        // drop the "@log" comment above the job, which shifts the job up by one
+        let removed = 0;
+        if (job.logFile !== undefined) {
+            const logComment = `# @log ${job.logFile}`;
+            for (let i = jobIndex - 1; i >= 0; i--) {
+                if (lines[i].trim() === logComment) {
+                    lines.splice(i, 1);
+                    removed = 1;
+                    break;
+                }
+            }
+        }
+        lines[jobIndex - removed] = commentPrefix + `${job.schedule} ${unwrapLoggingCommand(job.command)}`;
+    }
+
+    await writeCrontabContent(level, lines.join("\n"));
+}
+
+/**
+ * The cron schedule fields pointing at the exact minute a skip until
+ * timestamp ends, so that the generated resume job runs then.
+ *
+ * @param until - the skip until timestamp in "YYYY-MM-DDTHH:MM" format
+ * @returns five cron schedule fields
+ */
+function skipUntilSchedule(until: string): string {
+    const match = until.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+    if (match === null)
+        throw new Error(`invalid skip until timestamp: ${until}`);
+    const [, , month, day, hour, minute] = match;
+    return `${Number(minute)} ${Number(hour)} ${Number(day)} ${Number(month)} *`;
+}
+
+/**
+ * The command of the generated resume job for the given token. It re-enables
+ * the skipped job it belongs to and removes itself, its markers, and the
+ * skip markers from the crontab, so that the job runs again from then on.
+ *
+ * @param token - the token linking the resume job to its skipped job
+ */
+function resumeCommand(token: string): string {
+    // the shell expression stripping a "# " comment prefix, built in two parts
+    // so that the literal "${" is not written in a single string
+    const stripComment = "\"$" + "{line#\\# }\"";
+
+    const script =
+        "crontab -l | while IFS= read -r line; do case \"$line\" in " +
+        `"# @resume ${token}"*) continue ;; ` +
+        `"# @token ${token}"*) held=; skip=1; continue ;; ` +
+        "\"# @token \"*) [ -n \"$held\" ] && printf \"\\%s\\n\" \"$held\"; held=; printf \"\\%s\\n\" \"$line\"; continue ;; " +
+        "\"# @skipuntil\"*) held=\"$line\"; continue ;; " +
+        `*${token}*) continue ;; ` +
+        "*) if [ \"$skip\" = 1 ]; then skip=; printf \"\\%s\\n\" " + stripComment + "; elif [ -n \"$held\" ]; then printf \"\\%s\\n\" \"$held\"; held=; printf \"\\%s\\n\" \"$line\"; else printf \"\\%s\\n\" \"$line\"; fi ;; " +
+        "esac; done | crontab -";
+    return `sh -c '${script}'`;
+}
+
+/**
+ * Skip a cron job until the given timestamp, or resume it when no timestamp
+ * is given.
+ *
+ * A skipped job is commented out so that cron does not run it, and a
+ * supplementary resume job is added that re-enables it at the chosen time.
+ * Resuming removes the skip markers and the resume job. Modifying system
+ * level jobs requires administrative access.
+ *
+ * @param level which set of crontabs to modify
+ * @param job the job to skip or resume
+ * @param until the "YYYY-MM-DDTHH:MM" timestamp until which to skip the job,
+ *     or null to resume it immediately
+ */
+export async function setCronJobSkipUntil(level: CronLevel, job: CronJob, until: string | null): Promise<void> {
+    const content = await readCrontabContent(level);
+    let lines = content.split("\n");
+
+    // a changed skip replaces any existing skip state
+    if (job.skipToken !== undefined)
+        lines = removeSkipState(lines, job);
+
+    if (until !== null) {
+        const jobIndex = findJobLine(lines, job);
+        if (jobIndex === -1)
+            throw new Error(`cron job not found: ${job.command}`);
+
+        const token = newSkipToken();
+        const resumeSchedule = skipUntilSchedule(until);
+        // comment the job out only if it is not disabled already
+        const disabledJobLine = isCommented(lines[jobIndex]) ? lines[jobIndex] : `# ${lines[jobIndex]}`;
+        const block = [
+            `# @skipuntil ${until}`,
+            `# @token ${token}`,
+            disabledJobLine,
+            `# @resume ${token}`,
+            `${resumeSchedule} ${resumeCommand(token)}`
+        ];
+        lines.splice(jobIndex, 1, ...block);
+    }
+
+    await writeCrontabContent(level, lines.join("\n"));
+}
+
+/**
+ * Delete the log file of a cron job.
+ *
+ * @param level which set of crontabs the job belongs to
+ * @param job the job whose log file to delete
+ */
+export async function pruneCronJobLog(level: CronLevel, job: CronJob): Promise<void> {
+    if (job.logFile === undefined)
+        return;
+    await cockpit.spawn(["rm", "-f", job.logFile], logSpawnOptions(level));
+}
+
+/**
+ * Parse the contents of a cron job's log file into individual runs.
+ *
+ * A run starts at a marker line of the form "=== run <iso timestamp> ==="
+ * that was written by the wrapped command.
+ *
+ * @param content the raw log file contents
+ * @returns the list of runs found in the log
+ */
+export function parseCronLog(content: string): CronRun[] {
+    const runs: CronRun[] = [];
+    let current: CronRun | null = null;
+
+    content.split("\n").forEach((line, index) => {
+        const match = line.match(/^=== run (.+) ===$/);
+        if (match) {
+            current = {
+                id: `run-${index}`,
+                timestamp: match[1].trim(),
+                output: ""
+            };
+            runs.push(current);
+        } else if (current) {
+            current.output += line + "\n";
+        }
+    });
+
+    return runs;
+}
+
+/**
+ * Read the log file of a cron job and parse it into individual runs.
+ *
+ * @param level which set of crontabs the job belongs to
+ * @param job the job whose log file to read
+ * @returns the list of runs found in the log, empty if there is no log
+ */
+export async function readCronJobLogs(level: CronLevel, job: CronJob): Promise<CronRun[]> {
+    if (job.logFile === undefined)
+        return [];
+
+    let content: string;
+    try {
+        content = await cockpit.spawn(["cat", job.logFile], logSpawnOptions(level));
+    } catch {
+        // the log file does not exist yet or is not readable
+        return [];
+    }
+
+    return parseCronLog(content);
 }
