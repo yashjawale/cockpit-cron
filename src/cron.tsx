@@ -218,10 +218,10 @@ function isCommented(line: string): boolean {
 function jobEntryIndexes(lines: string[], job: CronJob): number[] {
     const indexes: number[] = [];
 
-    const jobIndex = findJobLine(lines, job);
+    const jobIndex = jobLineIndex(lines, job);
     if (jobIndex !== -1)
         indexes.push(jobIndex);
-    const labelIndex = findLabelLine(lines, job);
+    const labelIndex = findLabelLine(lines, job, jobIndex);
     if (labelIndex !== -1)
         indexes.push(labelIndex);
 
@@ -263,18 +263,33 @@ function findJobLine(lines: string[], job: CronJob): number {
 }
 
 /**
+ * The zero based index of the line a job was parsed from. Uses the job's
+ * unique line number, so that it targets the exact job even when another job
+ * has the same schedule and command. Falls back to a content search only if
+ * the line number is out of date.
+ *
+ * @param lines - the crontab lines
+ * @param job - the job to look up
+ * @returns the zero based index of the job line, or -1 if it was not found
+ */
+function jobLineIndex(lines: string[], job: CronJob): number {
+    const target = `${job.schedule} ${job.command}`;
+    const index = job.line - 1;
+    if (index >= 0 && index < lines.length && lines[index].replace(/^#+\s*/, "") === target)
+        return index;
+    return findJobLine(lines, job);
+}
+
+/**
  * Find the "@label" comment directly above a job line, skipping over any
  * skip markers in between.
  *
  * @param lines - the crontab lines
  * @param job - the job to look up
+ * @param jobIndex - the zero based index of the job line
  * @returns the zero based index of the label comment, or -1 if there is none
  */
-function findLabelLine(lines: string[], job: CronJob): number {
-    const jobIndex = findJobLine(lines, job);
-    if (jobIndex === -1)
-        return -1;
-
+function findLabelLine(lines: string[], job: CronJob, jobIndex: number): number {
     for (let i = jobIndex - 1; i >= 0; i--) {
         const trimmed = lines[i].trim();
         if (trimmed === `# @label ${job.label}`)
@@ -292,20 +307,25 @@ function findLabelLine(lines: string[], job: CronJob): number {
  *
  * @param lines - the crontab lines
  * @param job - the skipped job
- * @returns the lines without the skip state
+ * @returns how many lines were removed above the job, so that callers can
+ *     adjust the job's position in the lines
  */
-function removeSkipState(lines: string[], job: CronJob): string[] {
+function removeSkipState(lines: string[], job: CronJob): number {
     const token = job.skipToken;
     if (token === undefined)
-        return lines;
+        return 0;
 
+    let removedAbove = 0;
     const remove = new Set<number>();
     for (let i = 0; i < lines.length; i++) {
         const trimmed = lines[i].trim();
         if (trimmed === `# @token ${token}`) {
             remove.add(i);
-            if (lines[i - 1]?.trim().startsWith("# @skipuntil "))
+            removedAbove++;
+            if (lines[i - 1]?.trim().startsWith("# @skipuntil ")) {
                 remove.add(i - 1);
+                removedAbove++;
+            }
         }
         if (trimmed === `# @resume ${token}`) {
             remove.add(i);
@@ -316,10 +336,11 @@ function removeSkipState(lines: string[], job: CronJob): string[] {
 
     [...remove].sort((a, b) => b - a).forEach(i => lines.splice(i, 1));
 
-    const jobIndex = findJobLine(lines, job);
-    if (jobIndex !== -1 && isCommented(lines[jobIndex]))
+    // the job shifted up by the removed marker lines that sat above it
+    const jobIndex = job.line - 1 - removedAbove;
+    if (jobIndex >= 0 && jobIndex < lines.length && isCommented(lines[jobIndex]))
         lines[jobIndex] = lines[jobIndex].replace(/^#+\s*/, "");
-    return lines;
+    return removedAbove;
 }
 
 /**
@@ -622,14 +643,16 @@ function resumeCommand(token: string): string {
  */
 export async function setCronJobSkipUntil(level: CronLevel, job: CronJob, until: string | null): Promise<void> {
     const content = await readCrontabContent(level);
-    let lines = content.split("\n");
+    const lines = content.split("\n");
 
-    // a changed skip replaces any existing skip state
+    // a changed skip replaces any existing skip state, which shifts the job up
+    let jobIndex = job.line - 1;
     if (job.skipToken !== undefined)
-        lines = removeSkipState(lines, job);
+        jobIndex -= removeSkipState(lines, job);
 
     if (until !== null) {
-        const jobIndex = findJobLine(lines, job);
+        if (jobIndex < 0 || jobIndex >= lines.length || lines[jobIndex].replace(/^#+\s*/, "") !== `${job.schedule} ${job.command}`)
+            jobIndex = jobLineIndex(lines, job);
         if (jobIndex === -1)
             throw new Error(`cron job not found: ${job.command}`);
 
