@@ -44,9 +44,11 @@ title in the UI:
 0 4 * * 1 /usr/bin/backup
 ```
 
-The label comment must sit directly above the job line (blank lines between
-them break the association; `parseCrontab()` resets a pending label on blank
-lines).
+The label comment must sit directly above the job line. The `@log`,
+`@skipuntil`, and `@token` comments that annotate a job likewise only apply
+to the job directly below them; blank lines between a comment and its job
+break the association, and `parseCrontab()` drops any pending annotation
+state on blank lines.
 
 ### Disabled jobs
 
@@ -96,6 +98,9 @@ plus the markers that link them:
 - `@skipuntil` records the timestamp, `@token` links the job to its resume
   job, and `@resume` marks the generated resume job, which is hidden from the
   list.
+- A `@label` or `@log` comment of a skipped job sits above the skip markers
+  (i.e. above `@skipuntil`), so that the generated resume job still finds the
+  commented-out job line right after its `@token` marker.
 - The resume job runs at the exact minute the skip ends and rewrites the
   crontab itself: it strips the skip markers and its own lines and
   uncomments the job, so the job runs again from then on. This works even

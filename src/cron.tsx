@@ -207,6 +207,32 @@ function isCommented(line: string): boolean {
 }
 
 /**
+ * Whether a crontab line is one of the skip markers that sit above a skipped
+ * job, i.e. its "@skipuntil" or "@token" comment.
+ */
+function isSkipMarker(line: string): boolean {
+    const trimmed = line.trim();
+    return trimmed.startsWith("# @skipuntil ") || trimmed.startsWith("# @token ");
+}
+
+/**
+ * The index at which a comment line above the given job line belongs, i.e.
+ * directly above the job or, for a skipped job, above its skip markers, so
+ * that the generated resume job keeps finding the job line right after the
+ * "@token" marker.
+ *
+ * @param lines - the crontab lines
+ * @param jobIndex - the zero based index of the job line
+ * @returns the zero based index at which to insert the comment
+ */
+function commentInsertIndex(lines: string[], jobIndex: number): number {
+    let insertAt = jobIndex;
+    while (insertAt > 0 && isSkipMarker(lines[insertAt - 1]))
+        insertAt--;
+    return insertAt;
+}
+
+/**
  * The zero based line indexes of the given job's entry, i.e. its job line,
  * its label comment, and for a skipped job its skip markers and generated
  * resume job.
@@ -426,12 +452,15 @@ export async function updateCronJob(
     // removing the label above shifts the job line up by one
     const shiftedJobIndex = job.labelLine !== undefined ? jobIndex - 1 : jobIndex;
 
-    // rewrite the job line, keeping any comment prefix that disables it
-    lines[shiftedJobIndex] = (isCommented(lines[shiftedJobIndex]) ? "# " : "") + `${schedule} ${command}`;
+    // rewrite the job line, keeping any comment prefix that disables it and
+    // re-applying the logging wrapper if the job is logged
+    const storedCommand = job.logFile !== undefined ? loggingCommand(command, job.logFile) : command;
+    lines[shiftedJobIndex] = (isCommented(lines[shiftedJobIndex]) ? "# " : "") + `${schedule} ${storedCommand}`;
 
-    // insert the new label comment directly above the job
+    // insert the new label comment above the job, or above any skip markers
+    // of a skipped job so that the resume job keeps working
     if (label && label.trim() !== "") {
-        lines.splice(shiftedJobIndex, 0, `# @label ${label.trim()}`);
+        lines.splice(commentInsertIndex(lines, shiftedJobIndex), 0, `# @label ${label.trim()}`);
     }
 
     await writeCrontabContent(level, lines.join("\n"));
@@ -568,7 +597,8 @@ export async function setCronJobLogging(level: CronLevel, job: CronJob, enabled:
         const logFile = `${dir}/${token}.log`;
         await cockpit.spawn(["mkdir", "-p", dir], logSpawnOptions(level));
         lines[jobIndex] = commentPrefix + `${job.schedule} ${loggingCommand(job.command, logFile)}`;
-        lines.splice(jobIndex, 0, `# @log ${logFile}`);
+        // keep the "@log" comment above any skip markers of a skipped job
+        lines.splice(commentInsertIndex(lines, jobIndex), 0, `# @log ${logFile}`);
     } else {
         // drop the "@log" comment above the job, which shifts the job up by one
         let removed = 0;

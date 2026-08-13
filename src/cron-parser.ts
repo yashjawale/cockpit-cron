@@ -116,7 +116,7 @@ function inRange(value: string, range: readonly [number, number]): boolean {
  * @param field - which schedule field the entry belongs to
  */
 function isValidTimeItem(item: string, field: TimeField): boolean {
-    if (item === "*" || item === "?")
+    if (item === "*")
         return true;
     if (field === "month" && MONTH_NAMES_RE.test(item))
         return true;
@@ -238,6 +238,9 @@ export function parseCrontab(content: string, file: string, region?: ManagedRegi
         if (!line) {
             pendingLabel = undefined;
             pendingLabelLine = 0;
+            pendingLogFile = undefined;
+            pendingSkipUntil = undefined;
+            pendingSkipToken = undefined;
             return;
         }
 

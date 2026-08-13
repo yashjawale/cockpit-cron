@@ -461,6 +461,9 @@ class TestApplication(testlib.MachineCase):
         self.assertIn("# 0 0 * * * /usr/bin/uptime --new", output)
         self.assertIn("# @label New label", output)
         self.assertIn("# @resume ", output)
+        # the label sits above the skip markers so that the generated resume
+        # job still finds the job line right after its "@token" marker
+        self.assertLess(output.index("# @label New label"), output.index("# @skipuntil 2030-01-02T12:00"))
 
         # resuming the edited job restores it cleanly
         b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
@@ -893,6 +896,8 @@ class TestApplication(testlib.MachineCase):
         b.wait(lambda: "0 4 * * 1 /usr/bin/uptime" in m.execute("crontab -u root -l"))
 
         # clean up the root crontab again
+        m.execute("crontab -u root -r || true")
+
     def testImportAlert(self):
         b = self.browser
         m = self.machine
@@ -1282,6 +1287,50 @@ class TestApplication(testlib.MachineCase):
 
         # the row now offers a logs button
         b.wait_visible(".cron-job-logs-toggle")
+
+        # clean up the user crontab and log directory again
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+
+    def testEnableLoggingOnSkippedJob(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 /usr/bin/uptime"])
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
+
+        # skip the job first
+        b.click(KEBAB)
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+        b.set_input_text("#cron-skip-date", "2030-01-02")
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+        b.click("#cron-skip-submit")
+        b.wait_in_text(".pf-v6-c-data-list__item", "Skipped until")
+
+        # enable logging on the skipped job
+        b.click(KEBAB)
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Enable logging')")
+        b.wait(lambda: "@log" in m.execute("su admin -c 'crontab -l'"))
+
+        # the "@log" comment sits above the skip markers so that the generated
+        # resume job still finds the job line right after its "@token" marker
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertLess(output.index("# @log "), output.index("# @skipuntil 2030-01-02T12:00"))
+        self.assertLess(output.index("# @skipuntil 2030-01-02T12:00"), output.index("# @token "))
 
         # clean up the user crontab and log directory again
         m.execute("su admin -c 'crontab -r' || true")
