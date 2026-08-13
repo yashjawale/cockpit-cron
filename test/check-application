@@ -335,6 +335,45 @@ class TestApplication(testlib.MachineCase):
         # clean up the user crontab again
         m.execute("su admin -c 'crontab -r' || true")
 
+    def testSkipDuplicateJobs(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 /usr/bin/uptime", "0 4 * * 1 /usr/bin/uptime"])
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_count(".pf-v6-c-data-list__item", 2)
+
+        # skip the second of two identical jobs
+        b.click(".pf-v6-c-data-list__item:nth-child(2) .pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+        b.set_input_text("#cron-skip-date", "2030-01-02")
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+        b.click("#cron-skip-submit")
+
+        # only the second job is skipped, the first stays enabled
+        b.wait(lambda: "Skipped until" in b.text(".pf-v6-c-data-list__item:nth-child(2)"))
+        self.assertNotIn("Skipped until", b.text(".pf-v6-c-data-list__item:nth-child(1)"))
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertEqual(len([line for line in output.splitlines() if line.startswith("# @skipuntil")]), 1)
+        enabled = [line for line in output.splitlines() if line.strip().startswith("0 4 * * 1 /usr/bin/uptime")]
+        disabled = [line for line in output.splitlines() if line.strip().startswith("# 0 4 * * 1 /usr/bin/uptime")]
+        self.assertEqual(len(enabled), 1)
+        self.assertEqual(len(disabled), 1)
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
     def testDeleteSkippedJob(self):
         b = self.browser
         m = self.machine
