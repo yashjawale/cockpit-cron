@@ -365,9 +365,9 @@ class TestApplication(testlib.MachineCase):
         b.wait(lambda: "Skipped until" in b.text(".pf-v6-c-data-list__item:nth-child(2)"))
         self.assertNotIn("Skipped until", b.text(".pf-v6-c-data-list__item:nth-child(1)"))
         output = m.execute("su admin -c 'crontab -l'")
-        self.assertEqual(len([l for l in output.splitlines() if l.startswith("# @skipuntil")]), 1)
-        enabled = [l for l in output.splitlines() if l.strip().startswith("0 4 * * 1 /usr/bin/uptime")]
-        disabled = [l for l in output.splitlines() if l.strip().startswith("# 0 4 * * 1 /usr/bin/uptime")]
+        self.assertEqual(len([line for line in output.splitlines() if line.startswith("# @skipuntil")]), 1)
+        enabled = [line for line in output.splitlines() if line.strip().startswith("0 4 * * 1 /usr/bin/uptime")]
+        disabled = [line for line in output.splitlines() if line.strip().startswith("# 0 4 * * 1 /usr/bin/uptime")]
         self.assertEqual(len(enabled), 1)
         self.assertEqual(len(disabled), 1)
 
