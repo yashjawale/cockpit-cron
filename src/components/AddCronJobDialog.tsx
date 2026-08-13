@@ -14,7 +14,7 @@ import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput"
 
 import cockpit from 'cockpit';
 
-import { addCronJob, updateCronJob, type CronJob, type CronLevel } from "../cron";
+import { addCronJob, updateCronJob, unwrapLoggingCommand, type CronJob, type CronLevel } from "../cron";
 import { isValidSchedule } from "../cron-parser";
 
 const _ = cockpit.gettext;
@@ -53,7 +53,7 @@ export const AddCronJobDialog = ({ level, job, onClose, onSaved }: AddCronJobDia
     const [customSchedule, setCustomSchedule] = useState(
         job !== undefined && !(SCHEDULE_PRESETS as readonly string[]).includes(job.schedule));
     const [schedule, setSchedule] = useState<string>(job?.schedule ?? SCHEDULE_PRESETS[1]);
-    const [command, setCommand] = useState(job?.command ?? "");
+    const [command, setCommand] = useState(job !== undefined ? unwrapLoggingCommand(job.command) : "");
     const [label, setLabel] = useState(job?.label ?? "");
     const [error, setError] = useState<string | null>(null);
 

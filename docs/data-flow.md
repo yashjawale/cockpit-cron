@@ -30,7 +30,7 @@ belong to the affected job.
 | Operation | What it does |
 | --- | --- |
 | `addCronJob()` | inserts the new job (with optional `@label`) just before the `END` marker, or creates the whole region if none exists yet |
-| `updateCronJob()` | rewrites the job line and its label in place, keeping the disabled/comment prefix |
+| `updateCronJob()` | rewrites the job line and its label in place, keeping the disabled/comment prefix and re-applying the logging wrapper if the job is logged |
 | `deleteCronJob()` | removes the job line, its label, any skip markers and resume job, and one adjacent blank line |
 | `setCronJobEnabled()` | comments or uncomments the job line in place |
 | `setCronJobSkipUntil()` | replaces the job line with the skip markers, the commented job, and a resume job |

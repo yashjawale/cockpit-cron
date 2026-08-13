@@ -99,8 +99,16 @@ export const CronJobsList = ({ level, filter, reload, logRefresh, highlight, onE
                 setCronJobSkipUntil(level, job, null)
                         .catch(() => {
                             // revert the optimistic update on failure
-                            setJobs(current => current.map(
-                                candidate => candidate.id === job.id ? { ...candidate, enabled: false } : candidate));
+                            setJobs(current => current.map(candidate => {
+                                if (candidate.id !== job.id)
+                                    return candidate;
+                                const reverted: CronJob = { ...candidate, enabled: false };
+                                if (job.skipUntil !== undefined)
+                                    reverted.skipUntil = job.skipUntil;
+                                if (job.skipToken !== undefined)
+                                    reverted.skipToken = job.skipToken;
+                                return reverted;
+                            }));
                         });
             }
             return;
