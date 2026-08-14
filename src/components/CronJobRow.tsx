@@ -97,14 +97,18 @@ export const CronJobRow = ({ level, job, onEdit, onDelete, onToggleLogging, onPr
 
     const display = job.label || displayCommand(job.command);
 
+    // a stable DOM id for this row: the job id contains the crontab file name
+    // and a line number, so it is not a valid HTML id as-is
+    const domId = `cron-job-${job.id.replace(/[^A-Za-z0-9-]/g, "-")}`;
+
     return (
-        <DataListItem isExpanded={isExpanded} className={flash || highlightActive ? "ct-new-item" : ""} aria-labelledby={`cron-job-${job.id}`}>
+        <DataListItem isExpanded={isExpanded} className={flash || highlightActive ? "ct-new-item" : ""} aria-labelledby={domId}>
             <DataListItemRow>
                 <DataListItemCells
                     dataListCells={[
                         <DataListCell key="switch" isFilled={false}>
                             <Switch
-                                id={`cron-job-toggle-${job.id}`}
+                                id={`${domId}-toggle`}
                                 aria-label={_("Enable job")}
                                 isChecked={job.enabled}
                                 onChange={(_event, enabled) => {
@@ -113,7 +117,7 @@ export const CronJobRow = ({ level, job, onEdit, onDelete, onToggleLogging, onPr
                                 }}
                             />
                         </DataListCell>,
-                        <DataListCell key="job" id={`cron-job-${job.id}`} className="cron-job-label-cell">
+                        <DataListCell key="job" id={domId} className="cron-job-label-cell">
                             <div className="cron-job-main">
                                 <div className="cron-job-title">
                                     <DataListText className={job.enabled ? "" : "cron-job-disabled"}>{display}</DataListText>
@@ -129,14 +133,14 @@ export const CronJobRow = ({ level, job, onEdit, onDelete, onToggleLogging, onPr
                     ]}
                 />
                 <DataListAction
-                    id={`cron-job-actions-${job.id}`}
+                    id={`${domId}-actions`}
                     className="cron-job-actions"
-                    aria-labelledby={`cron-job-${job.id}`}
+                    aria-labelledby={domId}
                     aria-label={_("Job actions")}
                 >
                     {job.logFile !== undefined && (
                         <MenuToggle
-                            id={`cron-job-logs-${job.id}`}
+                            id={`${domId}-logs`}
                             className={`cron-job-logs-toggle${isExpanded ? " cron-job-logs-toggle-expanded" : ""}`}
                             variant="plain"
                             isExpanded={isExpanded}
@@ -154,7 +158,7 @@ export const CronJobRow = ({ level, job, onEdit, onDelete, onToggleLogging, onPr
                         toggle={toggleRef => (
                             <MenuToggle
                                 ref={toggleRef}
-                                id={`cron-job-menu-${job.id}`}
+                                id={`${domId}-menu`}
                                 variant="plain"
                                 isExpanded={isOpen}
                                 aria-label={_("Job actions")}
@@ -195,7 +199,7 @@ export const CronJobRow = ({ level, job, onEdit, onDelete, onToggleLogging, onPr
                 </DataListAction>
             </DataListItemRow>
             {job.logFile !== undefined && (
-                <DataListContent id={`cron-job-logs-content-${job.id}`} aria-label={_("Job logs")} isHidden={!isExpanded} hasNoPadding>
+                <DataListContent id={`${domId}-logs-content`} aria-label={_("Job logs")} isHidden={!isExpanded} hasNoPadding>
                     {isExpanded && <CronJobLogs level={level} job={job} refresh={logRefresh} />}
                 </DataListContent>
             )}

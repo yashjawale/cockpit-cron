@@ -52,6 +52,12 @@ class TestApplication(testlib.MachineCase):
         b.wait_in_text(".pf-v6-c-data-list__item", "/usr/bin/uptime")
         b.wait_not_present("#cron-import-alert")
 
+        # the row's element ids are valid HTML ids, without the spaces and
+        # colons of the internal job id (e.g. "root crontab:2")
+        row_id = b.attr(".pf-v6-c-data-list__item .cron-job-label-cell", "id")
+        self.assertNotIn(" ", row_id)
+        self.assertNotIn(":", row_id)
+
         # switch to user level jobs, which are empty for a fresh user
         b.click("#cron-level-user")
         b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
