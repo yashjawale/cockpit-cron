@@ -148,7 +148,8 @@ export async function addCronJob(
 ): Promise<void> {
     const content = await readCrontabContent(level);
     const lines = content.split("\n");
-    const entry = label ? [`# @label ${label}`, `${schedule} ${command}`] : [`${schedule} ${command}`];
+    const storedCommand = escapePercent(command);
+    const entry = label ? [`# @label ${label}`, `${schedule} ${storedCommand}`] : [`${schedule} ${storedCommand}`];
 
     const region = findManagedRegion(lines);
     if (region !== null)
@@ -215,12 +216,14 @@ function isCommented(line: string): boolean {
 }
 
 /**
- * Whether a crontab line is one of the skip markers that sit above a skipped
- * job, i.e. its "@skipuntil" or "@token" comment.
+ * The annotation text of a comment line, with the leading hash characters and
+ * any whitespace removed, so that "## @label foo" and "# @label foo" compare
+ * equal. Returns the line unchanged if it is not a comment.
+ *
+ * @param line - the raw crontab line
  */
-function isSkipMarker(line: string): boolean {
-    const trimmed = line.trim();
-    return trimmed.startsWith("# @skipuntil ") || trimmed.startsWith("# @token ");
+function annotationText(line: string): string {
+    return line.trim().replace(/^#+\s*/, "");
 }
 
 /**
@@ -235,8 +238,13 @@ function isSkipMarker(line: string): boolean {
  */
 function commentInsertIndex(lines: string[], jobIndex: number): number {
     let insertAt = jobIndex;
-    while (insertAt > 0 && isSkipMarker(lines[insertAt - 1]))
-        insertAt--;
+    while (insertAt > 0) {
+        const text = annotationText(lines[insertAt - 1]);
+        if (text.startsWith("@skipuntil ") || text.startsWith("@token ") || text.startsWith("@log "))
+            insertAt--;
+        else
+            break;
+    }
     return insertAt;
 }
 
@@ -264,13 +272,13 @@ function jobEntryIndexes(lines: string[], job: CronJob): number[] {
 
     if (job.skipToken !== undefined) {
         for (let i = 0; i < lines.length; i++) {
-            const trimmed = lines[i].trim();
-            if (trimmed === `# @token ${job.skipToken}`) {
+            const text = annotationText(lines[i]);
+            if (text === `@token ${job.skipToken}`) {
                 indexes.push(i);
-                if (lines[i - 1]?.trim().startsWith("# @skipuntil "))
+                if (annotationText(lines[i - 1] ?? "").startsWith("@skipuntil "))
                     indexes.push(i - 1);
             }
-            if (trimmed === `# @resume ${job.skipToken}`) {
+            if (text === `@resume ${job.skipToken}`) {
                 indexes.push(i);
                 if (i + 1 < lines.length)
                     indexes.push(i + 1);
@@ -328,10 +336,10 @@ function jobLineIndex(lines: string[], job: CronJob): number {
  */
 function findLabelLine(lines: string[], job: CronJob, jobIndex: number): number {
     for (let i = jobIndex - 1; i >= 0; i--) {
-        const trimmed = lines[i].trim();
-        if (trimmed === `# @label ${job.label}`)
+        const text = annotationText(lines[i]);
+        if (text === `@label ${job.label}`)
             return i;
-        if (trimmed.startsWith("# @skipuntil ") || trimmed.startsWith("# @token "))
+        if (text.startsWith("@skipuntil ") || text.startsWith("@token "))
             continue;
         break;
     }
@@ -340,8 +348,8 @@ function findLabelLine(lines: string[], job: CronJob, jobIndex: number): number 
 
 /**
  * Find the "@log" comment directly above a job line, skipping over any skip
- * markers in between, so that the log comment is removed or moved together
- * with the job.
+ * markers or the label comment in between, so that the log comment is removed
+ * or moved together with the job.
  *
  * @param lines - the crontab lines
  * @param job - the job to look up
@@ -352,10 +360,10 @@ function findLogLine(lines: string[], job: CronJob, jobIndex: number): number {
     if (job.logFile === undefined)
         return -1;
     for (let i = jobIndex - 1; i >= 0; i--) {
-        const trimmed = lines[i].trim();
-        if (trimmed === `# @log ${job.logFile}`)
+        const text = annotationText(lines[i]);
+        if (text === `@log ${job.logFile}`)
             return i;
-        if (trimmed.startsWith("# @skipuntil ") || trimmed.startsWith("# @token "))
+        if (text.startsWith("@skipuntil ") || text.startsWith("@token ") || text.startsWith("@label "))
             continue;
         break;
     }
@@ -379,16 +387,16 @@ function removeSkipState(lines: string[], job: CronJob): number {
     let removedAbove = 0;
     const remove = new Set<number>();
     for (let i = 0; i < lines.length; i++) {
-        const trimmed = lines[i].trim();
-        if (trimmed === `# @token ${token}`) {
+        const text = annotationText(lines[i]);
+        if (text === `@token ${token}`) {
             remove.add(i);
             removedAbove++;
-            if (lines[i - 1]?.trim().startsWith("# @skipuntil ")) {
+            if (annotationText(lines[i - 1] ?? "").startsWith("@skipuntil ")) {
                 remove.add(i - 1);
                 removedAbove++;
             }
         }
-        if (trimmed === `# @resume ${token}`) {
+        if (text === `@resume ${token}`) {
             remove.add(i);
             if (i + 1 < lines.length)
                 remove.add(i + 1);
@@ -489,7 +497,7 @@ export async function updateCronJob(
 
     // rewrite the job line, keeping any comment prefix that disables it and
     // re-applying the logging wrapper if the job is logged
-    const storedCommand = job.logFile !== undefined ? loggingCommand(command, job.logFile) : command;
+    const storedCommand = job.logFile !== undefined ? loggingCommand(escapePercent(command), job.logFile) : escapePercent(command);
     lines[shiftedJobIndex] = (isCommented(lines[shiftedJobIndex]) ? "# " : "") + `${schedule} ${storedCommand}`;
 
     // insert the new label comment above the job, or above any skip markers
@@ -551,6 +559,27 @@ function unescapeSh(command: string): string {
 }
 
 /**
+ * Escape the "%" characters of a command so that cron does not convert them
+ * into newlines and feed the rest of the line to the command's standard input,
+ * which would silently truncate the command. An already escaped "\%" is left
+ * alone.
+ *
+ * @param command the command to escape
+ */
+function escapePercent(command: string): string {
+    return command.replace(/(?<!\\)%/g, "\\%");
+}
+
+/**
+ * Undo the escaping done by {@link escapePercent}.
+ *
+ * @param command the escaped command
+ */
+export function unescapePercent(command: string): string {
+    return command.replace(/\\%/g, "%");
+}
+
+/**
  * The shell fragment that prefixes each run in a log file with a marker line
  * carrying an ISO timestamp, e.g. "=== run 2026-08-09T10:00:00+00:00 ===".
  * Uses "date -Iseconds" so that no "%" characters end up in the crontab,
@@ -583,6 +612,16 @@ export function unwrapLoggingCommand(command: string): string {
     if (match === null)
         return command;
     return unescapeSh(match[1]);
+}
+
+/**
+ * The command as it should be shown to the user: the original command behind
+ * a logging wrapper, with any cron escaping undone.
+ *
+ * @param command the command as stored in the crontab
+ */
+export function displayCommand(command: string): string {
+    return unescapePercent(unwrapLoggingCommand(command));
 }
 
 /**
@@ -638,9 +677,9 @@ export async function setCronJobLogging(level: CronLevel, job: CronJob, enabled:
         // drop the "@log" comment above the job, which shifts the job up by one
         let removed = 0;
         if (job.logFile !== undefined) {
-            const logComment = `# @log ${job.logFile}`;
+            const logComment = `@log ${job.logFile}`;
             for (let i = jobIndex - 1; i >= 0; i--) {
-                if (lines[i].trim() === logComment) {
+                if (annotationText(lines[i]) === logComment) {
                     lines.splice(i, 1);
                     removed = 1;
                     break;
@@ -657,15 +696,20 @@ export async function setCronJobLogging(level: CronLevel, job: CronJob, enabled:
  * The cron schedule fields pointing at the exact minute a skip until
  * timestamp ends, so that the generated resume job runs then.
  *
+ * The timestamp is interpreted as the local wall clock the user picked in the
+ * browser, and the server converts that instant into its own timezone, so
+ * that the resume job runs at the intended moment even when the browser and
+ * the server use different timezones.
+ *
  * @param until - the skip until timestamp in "YYYY-MM-DDTHH:MM" format
  * @returns five cron schedule fields
  */
-function skipUntilSchedule(until: string): string {
-    const match = until.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
-    if (match === null)
+async function skipUntilSchedule(until: string): Promise<string> {
+    const epoch = new Date(until).getTime();
+    if (Number.isNaN(epoch))
         throw new Error(`invalid skip until timestamp: ${until}`);
-    const [, , month, day, hour, minute] = match;
-    return `${Number(minute)} ${Number(hour)} ${Number(day)} ${Number(month)} *`;
+    const fields = await cockpit.spawn(["date", "-d", `@${Math.floor(epoch / 1000)}`, "+%M %H %d %m"]);
+    return `${fields.trim()} *`;
 }
 
 /**
@@ -722,7 +766,7 @@ export async function setCronJobSkipUntil(level: CronLevel, job: CronJob, until:
             throw new Error(`cron job not found: ${job.command}`);
 
         const token = newSkipToken();
-        const resumeSchedule = skipUntilSchedule(until);
+        const resumeSchedule = await skipUntilSchedule(until);
         // comment the job out only if it is not disabled already
         const disabledJobLine = isCommented(lines[jobIndex]) ? lines[jobIndex] : `# ${lines[jobIndex]}`;
         const block = [
@@ -794,9 +838,13 @@ export async function readCronJobLogs(level: CronLevel, job: CronJob): Promise<C
     let content: string;
     try {
         content = await cockpit.spawn(["cat", job.logFile], logSpawnOptions(level));
-    } catch {
-        // the log file does not exist yet or is not readable
-        return [];
+    } catch (error) {
+        // a log file that does not exist yet simply has no runs; anything
+        // else, like missing permissions, is a real problem to report
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes("No such file or directory"))
+            return [];
+        throw error;
     }
 
     return parseCronLog(content);

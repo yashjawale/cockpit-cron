@@ -23,7 +23,7 @@ import { ListIcon } from '@patternfly/react-icons/dist/esm/icons/list-icon';
 
 import cockpit from 'cockpit';
 
-import { unwrapLoggingCommand, type CronJob, type CronLevel } from "../cron";
+import { displayCommand, type CronJob, type CronLevel } from "../cron";
 import { CronJobLogs } from "./CronJobLogs";
 
 const _ = cockpit.gettext;
@@ -95,7 +95,7 @@ export const CronJobRow = ({ level, job, onEdit, onDelete, onToggleLogging, onPr
         return () => clearTimeout(timer);
     }, [highlight, highlightTick]);
 
-    const display = job.label || (job.logFile !== undefined ? unwrapLoggingCommand(job.command) : job.command);
+    const display = job.label || displayCommand(job.command);
 
     return (
         <DataListItem isExpanded={isExpanded} className={flash || highlightActive ? "ct-new-item" : ""} aria-labelledby={`cron-job-${job.id}`}>

@@ -11,7 +11,7 @@ import { Modal, ModalBody, ModalFooter, ModalHeader } from "@patternfly/react-co
 
 import cockpit from 'cockpit';
 
-import { pruneCronJobLog, type CronJob, type CronLevel } from "../cron";
+import { pruneCronJobLog, displayCommand, type CronJob, type CronLevel } from "../cron";
 
 const _ = cockpit.gettext;
 
@@ -53,7 +53,7 @@ export const PruneLogsDialog = ({ level, job, onClose, onPruned }: PruneLogsDial
                 });
     };
 
-    const display = job.label || job.command;
+    const display = job.label || displayCommand(job.command);
 
     return (
         <Modal isOpen position="top" variant="small" onClose={onClose}>
