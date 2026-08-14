@@ -138,7 +138,8 @@ export const CronJobsList = ({ level, filter, reload, logRefresh, highlight, onE
         ? jobs.filter(job =>
             job.command.toLowerCase().includes(filter.toLowerCase()) ||
             job.schedule.toLowerCase().includes(filter.toLowerCase()) ||
-            job.file.toLowerCase().includes(filter.toLowerCase()))
+            job.file.toLowerCase().includes(filter.toLowerCase()) ||
+            (job.label !== undefined && job.label.toLowerCase().includes(filter.toLowerCase())))
         : jobs;
 
     const emptyCaption = filter

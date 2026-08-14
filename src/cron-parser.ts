@@ -129,7 +129,7 @@ function isValidTimeItem(item: string, field: TimeField): boolean {
     const stepIndex = item.indexOf("/");
     if (stepIndex >= 0) {
         const step = item.slice(stepIndex + 1);
-        if (!/^\d+$/.test(step))
+        if (!/^\d+$/.test(step) || Number(step) === 0)
             return false;
         value = item.slice(0, stepIndex);
     }
@@ -140,7 +140,7 @@ function isValidTimeItem(item: string, field: TimeField): boolean {
     const rangeIndex = value.indexOf("-");
     if (rangeIndex >= 0) {
         const [from, to] = value.split("-");
-        return inRange(from, range) && inRange(to, range);
+        return inRange(from, range) && inRange(to, range) && Number(from) <= Number(to);
     }
 
     return inRange(value, range);

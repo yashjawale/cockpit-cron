@@ -250,6 +250,9 @@ function jobEntryIndexes(lines: string[], job: CronJob): number[] {
     const labelIndex = findLabelLine(lines, job, jobIndex);
     if (labelIndex !== -1)
         indexes.push(labelIndex);
+    const logIndex = findLogLine(lines, job, jobIndex);
+    if (logIndex !== -1)
+        indexes.push(logIndex);
 
     if (job.skipToken !== undefined) {
         for (let i = 0; i < lines.length; i++) {
@@ -319,6 +322,30 @@ function findLabelLine(lines: string[], job: CronJob, jobIndex: number): number 
     for (let i = jobIndex - 1; i >= 0; i--) {
         const trimmed = lines[i].trim();
         if (trimmed === `# @label ${job.label}`)
+            return i;
+        if (trimmed.startsWith("# @skipuntil ") || trimmed.startsWith("# @token "))
+            continue;
+        break;
+    }
+    return -1;
+}
+
+/**
+ * Find the "@log" comment directly above a job line, skipping over any skip
+ * markers in between, so that the log comment is removed or moved together
+ * with the job.
+ *
+ * @param lines - the crontab lines
+ * @param job - the job to look up
+ * @param jobIndex - the zero based index of the job line
+ * @returns the zero based index of the log comment, or -1 if there is none
+ */
+function findLogLine(lines: string[], job: CronJob, jobIndex: number): number {
+    if (job.logFile === undefined)
+        return -1;
+    for (let i = jobIndex - 1; i >= 0; i--) {
+        const trimmed = lines[i].trim();
+        if (trimmed === `# @log ${job.logFile}`)
             return i;
         if (trimmed.startsWith("# @skipuntil ") || trimmed.startsWith("# @token "))
             continue;

@@ -141,10 +141,12 @@ explicitly supports `/dev/kvm`. Please see [Quick
 Start](https://cirrus-ci.org/guide/quick-start/) how to set up Cirrus CI for
 your project after forking from cockpit-cron.
 
-The included [.cirrus.yml](./.cirrus.yml) runs the integration tests for two
-operating systems (Fedora and CentOS 8). Note that if/once your project grows
-bigger, or gets frequent changes, you may need to move to a paid account, or
-different infrastructure with more capacity.
+The [.cirrus.yml.disabled](./.cirrus.yml.disabled) file runs the integration
+tests for two operating systems (Fedora and CentOS Stream). It is disabled by
+default; to use it, rename it to `.cirrus.yml` and set up Cirrus CI as
+described in the [Quick Start](https://cirrus-ci.org/guide/quick-start/). Note
+that if/once your project grows bigger, or gets frequent changes, you may need
+to move to a paid account, or different infrastructure with more capacity.
 
 Tests also run in [Packit](https://packit.dev/) for all currently supported
 Fedora releases; see the [packit.yaml](./packit.yaml) control file. You need to
@@ -170,11 +172,12 @@ changes:
 - fix bug #123
 ```
 
-Pushing the release tag triggers the [release.yml](.github/workflows/release.yml.disabled)
+Pushing a version tag (e.g. `123`) triggers the
+[release.yml](.github/workflows/release.yml)
 [GitHub action](https://github.com/features/actions) workflow. This creates the
-official release tarball and publishes as upstream release to GitHub. The
-workflow is disabled by default -- to use it, edit the file as per the comment
-at the top, and rename it to just `*.yml`.
+official release tarball and publishes as upstream release to GitHub. It can
+also be triggered manually (Actions → release → Run workflow) with the "Dry
+run" input enabled, which builds the artifacts without publishing them.
 
 The Fedora and COPR releases are done with [Packit](https://packit.dev/),
 see the [packit.yaml](./packit.yaml) control file.
