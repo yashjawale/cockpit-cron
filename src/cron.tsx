@@ -191,10 +191,14 @@ export async function importCronJobs(level: CronLevel): Promise<void> {
     // the lines that stay outside of the managed region
     const outside = lines.filter((_, index) => !move.has(index));
 
-    // the job entry lines moved into the region, separated by blank lines
+    // the job entry lines moved into the region, separated by blank lines;
+    // the job line itself gets its "%" characters escaped on the way in
     const block: string[] = [];
     importable.forEach((job, jobIndex) => {
-        jobEntryIndexes(lines, job).forEach(index => block.push(lines[index]));
+        const jobLine = job.line - 1;
+        jobEntryIndexes(lines, job).forEach(index => {
+            block.push(index === jobLine ? escapeImportJobLine(lines[index], job) : lines[index]);
+        });
         if (jobIndex < importable.length - 1)
             block.push("");
     });
@@ -580,6 +584,22 @@ export function unescapePercent(command: string): string {
 }
 
 /**
+ * The line of an imported job with any unescaped "%" characters of its
+ * command escaped, so that cron does not truncate the command after the
+ * import. Returns the line unchanged when the command has no unescaped "%".
+ *
+ * @param line - the raw job line as it sits in the crontab
+ * @param job - the job the line was parsed from
+ */
+function escapeImportJobLine(line: string, job: CronJob): string {
+    if (!/(^|[^\\])%/.test(job.command))
+        return line;
+    const stripped = line.replace(/^#+\s*/, "");
+    const commentPrefix = line.slice(0, line.length - stripped.length);
+    return commentPrefix + `${job.schedule} ${escapePercent(job.command)}`;
+}
+
+/**
  * The shell fragment that prefixes each run in a log file with a marker line
  * carrying an ISO timestamp, e.g. "=== run 2026-08-09T10:00:00+00:00 ===".
  * Uses "date -Iseconds" so that no "%" characters end up in the crontab,
@@ -795,6 +815,14 @@ export async function pruneCronJobLog(level: CronLevel, job: CronJob): Promise<v
 }
 
 /**
+ * A marker line written by the wrapped command at the start of each run, e.g.
+ * "=== run 2026-08-09T10:00:00+00:00 ===". The timestamp is matched strictly
+ * so that output of the logged command that merely resembles a marker, like
+ * "=== run completed ===", is not mistaken for a new run.
+ */
+const RUN_MARKER_RE = /^=== run (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}) ===$/;
+
+/**
  * Parse the contents of a cron job's log file into individual runs.
  *
  * A run starts at a marker line of the form "=== run <iso timestamp> ==="
@@ -808,11 +836,11 @@ export function parseCronLog(content: string): CronRun[] {
     let current: CronRun | null = null;
 
     content.split("\n").forEach((line, index) => {
-        const match = line.match(/^=== run (.+) ===$/);
+        const match = line.match(RUN_MARKER_RE);
         if (match) {
             current = {
                 id: `run-${index}`,
-                timestamp: match[1].trim(),
+                timestamp: match[1],
                 output: ""
             };
             runs.push(current);

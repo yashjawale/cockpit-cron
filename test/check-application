@@ -1382,7 +1382,10 @@ class TestApplication(testlib.MachineCase):
 
         output = m.execute("su admin -c 'crontab -l'")
         logpath = re.search(r"# @log (\S+)", output).group(1)
+        # the first run's output contains a line that merely looks like a run
+        # marker; it must stay part of the run's output and not split the log
         log_content = ("=== run 2026-08-09T10:00:00+00:00 ===\\nhello from run one\\n"
+                       "=== run completed ===\\n"
                        "=== run 2026-08-09T11:30:00+00:00 ===\\nhello from run two\\n")
         m.execute(f"su admin -c 'printf \"{log_content}\" > {logpath}'")
         self.assertTrue(m.execute(f"su admin -c 'test -e {logpath}'") == "")
@@ -1396,9 +1399,11 @@ class TestApplication(testlib.MachineCase):
         # the latest run is selected by default, its output is shown
         b.wait_in_text(".cron-log-output", "hello from run two")
 
-        # selecting the first run in the list shows its output
+        # selecting the first run in the list shows its output, including the
+        # line that looks like a run marker
         b.click(".cron-log-runs .pf-v6-c-menu__list-item:first-child button")
         b.wait_in_text(".cron-log-output", "hello from run one")
+        b.wait_in_text(".cron-log-output", "=== run completed ===")
 
         # clean up the user crontab and log directory again
         m.execute("su admin -c 'crontab -r' || true")
@@ -1741,6 +1746,25 @@ class TestApplication(testlib.MachineCase):
         # clean up the user crontab and log directory again
         m.execute("su admin -c 'crontab -r' || true")
         m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+
+    def testImportEscapesPercent(self):
+        b = self.browser
+        m = self.machine
+        m.execute("su admin -c 'crontab -r' || true")
+        self.login_and_go("/cron")
+        m.execute("printf '%s\\n' '0 4 * * 1 /bin/echo 100% loaded' | su admin -c 'crontab -'")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_visible("#cron-import-jobs")
+        b.click("#cron-import-jobs")
+        b.wait(lambda: "BEGIN COCKPIT-CRON" in m.execute("su admin -c 'crontab -l'"))
+        output = m.execute("su admin -c 'crontab -l'")
+        self.assertIn(r"/bin/echo 100\% loaded", output)
+        self.assertNotIn("100% loaded", output)
+        m.execute("su admin -c 'crontab -r' || true")
 
 if __name__ == '__main__':
     testlib.test_main()
