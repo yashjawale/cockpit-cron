@@ -15,7 +15,7 @@ import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput"
 
 import cockpit from 'cockpit';
 
-import { setCronJobSkipUntil, type CronJob, type CronLevel } from "../cron";
+import { setCronJobSkipUntil, displayCommand, type CronJob, type CronLevel } from "../cron";
 
 const _ = cockpit.gettext;
 
@@ -119,7 +119,7 @@ export const SkipUntilDialog = ({ level, job, onClose, onSaved }: SkipUntilDialo
                 });
     };
 
-    const display = job.label || job.command;
+    const display = job.label || displayCommand(job.command);
 
     return (
         <Modal isOpen position="top" variant="small" onClose={onClose}>

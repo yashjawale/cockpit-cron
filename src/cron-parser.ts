@@ -137,6 +137,14 @@ function isValidTimeItem(item: string, field: TimeField): boolean {
     if (value === "*")
         return true;
 
+    // cron accepts ranges of weekday names such as "mon-fri", also in
+    // reversed order or with a step; month name ranges are not supported
+    if (field === "weekday") {
+        const nameRange = value.match(/^([a-z]{3})-([a-z]{3})$/i);
+        if (nameRange !== null && DAY_NAMES_RE.test(nameRange[1]) && DAY_NAMES_RE.test(nameRange[2]))
+            return true;
+    }
+
     const rangeIndex = value.indexOf("-");
     if (rangeIndex >= 0) {
         const [from, to] = value.split("-");

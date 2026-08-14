@@ -5,6 +5,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
+import { Alert } from "@patternfly/react-core/dist/esm/components/Alert";
 import { CalendarMonth } from "@patternfly/react-core/dist/esm/components/CalendarMonth";
 import { EmptyState, EmptyStateBody } from "@patternfly/react-core/dist/esm/components/EmptyState";
 import { Menu, MenuContent, MenuItem, MenuList } from "@patternfly/react-core/dist/esm/components/Menu";
@@ -50,6 +51,7 @@ export interface CronJobLogsProps {
 export const CronJobLogs = ({ level, job, refresh }: CronJobLogsProps) => {
     const [runs, setRuns] = useState<CronRun[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [selectedDay, setSelectedDay] = useState<Date | null>(null);
     const [selectedRun, setSelectedRun] = useState<string | null>(null);
     const [viewerHeight, setViewerHeight] = useState<number | null>(null);
@@ -84,6 +86,7 @@ export const CronJobLogs = ({ level, job, refresh }: CronJobLogsProps) => {
         let cancelled = false;
 
         setLoading(true);
+        setError(null);
         readCronJobLogs(level, job)
                 .then(result => {
                     if (!cancelled) {
@@ -96,9 +99,10 @@ export const CronJobLogs = ({ level, job, refresh }: CronJobLogsProps) => {
                         }
                     }
                 })
-                .catch(() => {
+                .catch(error => {
                     if (!cancelled) {
                         setRuns([]);
+                        setError(error instanceof Error ? error.message : String(error));
                         setLoading(false);
                     }
                 });
@@ -129,6 +133,17 @@ export const CronJobLogs = ({ level, job, refresh }: CronJobLogsProps) => {
 
     if (loading)
         return <EmptyState><EmptyStateBody>{_("Loading logs...")}</EmptyStateBody></EmptyState>;
+
+    if (error !== null)
+        return (
+            <EmptyState>
+                <EmptyStateBody>
+                    <Alert id="cron-job-logs-error" isInline variant="danger" title={_("Failed to read the job logs")}>
+                        {error}
+                    </Alert>
+                </EmptyStateBody>
+            </EmptyState>
+        );
 
     if (runs.length === 0)
         return <EmptyState><EmptyStateBody>{_("No runs recorded yet")}</EmptyStateBody></EmptyState>;

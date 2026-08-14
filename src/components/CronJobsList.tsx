@@ -11,7 +11,7 @@ import { EmptyState, EmptyStateBody } from "@patternfly/react-core/dist/esm/comp
 
 import cockpit from 'cockpit';
 
-import { readCronJobs, setCronJobEnabled, setCronJobLogging, setCronJobSkipUntil, type CronJob, type CronLevel } from "../cron";
+import { readCronJobs, setCronJobEnabled, setCronJobLogging, setCronJobSkipUntil, displayCommand, type CronJob, type CronLevel } from "../cron";
 import { CronJobRow } from "./CronJobRow";
 
 const _ = cockpit.gettext;
@@ -139,11 +139,13 @@ export const CronJobsList = ({ level, filter, reload, logRefresh, highlight, onE
     };
 
     const filteredJobs = filter
-        ? jobs.filter(job =>
-            job.command.toLowerCase().includes(filter.toLowerCase()) ||
-            job.schedule.toLowerCase().includes(filter.toLowerCase()) ||
-            job.file.toLowerCase().includes(filter.toLowerCase()) ||
-            (job.label !== undefined && job.label.toLowerCase().includes(filter.toLowerCase())))
+        ? jobs.filter(job => {
+            const command = displayCommand(job.command).toLowerCase();
+            return command.includes(filter.toLowerCase()) ||
+                job.schedule.toLowerCase().includes(filter.toLowerCase()) ||
+                job.file.toLowerCase().includes(filter.toLowerCase()) ||
+                (job.label !== undefined && job.label.toLowerCase().includes(filter.toLowerCase()));
+        })
         : jobs;
 
     const emptyCaption = filter

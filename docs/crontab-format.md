@@ -82,6 +82,27 @@ that file, each run prefixed with a marker line:
   directions. `date -Iseconds` is used instead of a `%`-format so that cron
   does not convert `%` characters into newlines.
 
+## Special characters in commands
+
+Cron treats a `%` in a command specially: an unescaped `%` is converted into
+a newline, and everything after the first unescaped `%` is fed to the
+command's standard input instead of being executed. The module therefore
+escapes `%` as `\%` when storing a command and undoes that escaping for
+display:
+
+```
+0 4 * * 1 /bin/echo 100\% loaded
+```
+
+- `escapePercent()` / `unescapePercent()` perform the escaping in both
+  directions; an already escaped `\%` is left alone, so editing a command
+  round-trips.
+- The escaped form is what is stored in the crontab and what the parser
+  reports as the job command; `displayCommand()` undoes the escaping (and the
+  logging wrapper) for the UI.
+- A `%` in a label comment is not an issue, because cron ignores comment
+  lines entirely.
+
 ## Skip until
 
 Skipping a job until a timestamp comments the job out and adds a resume job
@@ -92,7 +113,7 @@ plus the markers that link them:
 # @token abc123
 # 0 4 * * 1 /usr/bin/backup
 # @resume abc123
-0 12 2 1 * sh -c 'crontab -l | ...'
+30 6 2 1 * sh -c 'crontab -l | ...'
 ```
 
 - `@skipuntil` records the timestamp, `@token` links the job to its resume
@@ -101,6 +122,10 @@ plus the markers that link them:
 - A `@label` or `@log` comment of a skipped job sits above the skip markers
   (i.e. above `@skipuntil`), so that the generated resume job still finds the
   commented-out job line right after its `@token` marker.
+- The timestamp is the wall clock the user picked in the browser. The resume
+  job's schedule is computed by converting that instant into the server's own
+  timezone (`date -d @<epoch>`), so the job resumes at the intended moment
+  even when the browser and the server use different timezones.
 - The resume job runs at the exact minute the skip ends and rewrites the
   crontab itself: it strips the skip markers and its own lines and
   uncomments the job, so the job runs again from then on. This works even
@@ -124,6 +149,15 @@ differently in such cases:
   affects the first. The row highlight for a skip change uses the same
   schedule + command key and therefore marks both rows.
 
+## Schedule parsing
+
+Schedules are validated and parsed with `isValidSchedule()` /
+`parseSchedule()`, mirroring what cron accepts. In addition to plain numbers,
+wildcards, steps, and numeric ranges, the day-of-week field accepts ranges of
+day names such as `mon-fri` (also reversed or with a step), which cron allows.
+Month name ranges such as `jan-mar` are not accepted by cron and therefore not
+recognized either.
+
 ## Summary of annotation comments
 
 | Comment | Meaning |
@@ -133,3 +167,9 @@ differently in such cases:
 | `# @skipuntil <iso>` | the following job is skipped until the timestamp |
 | `# @token <token>` | links the skipped job to its resume job |
 | `# @resume <token>` | marks a generated resume job, hidden from the list |
+
+The annotation comments are parsed leniently and may be written with several
+leading `#` characters (e.g. `## @label backup`). The write path locates and
+removes them the same way, so deleting a job, moving it on import, or
+resuming a skipped job always takes its annotation comments along, regardless
+of how many hashes they were written with.

@@ -1,4 +1,4 @@
-# Cockit Cron
+# Cockpit Cron
 
 Scaffolding for a [Cockpit](https://cockpit-project.org/) module.
 
@@ -77,7 +77,7 @@ remove manually the symlink:
 
 # Running eslint
 
-Cockit Cron uses [ESLint](https://eslint.org/) to automatically check
+Cockpit Cron uses [ESLint](https://eslint.org/) to automatically check
 JavaScript/TypeScript code style in `.js[x]` and `.ts[x]` files.
 
 eslint is executed as part of `test/static-code`, aka. `make codecheck`.

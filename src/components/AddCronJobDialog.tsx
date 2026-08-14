@@ -14,7 +14,7 @@ import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput"
 
 import cockpit from 'cockpit';
 
-import { addCronJob, updateCronJob, unwrapLoggingCommand, type CronJob, type CronLevel } from "../cron";
+import { addCronJob, updateCronJob, displayCommand, type CronJob, type CronLevel } from "../cron";
 import { isValidSchedule } from "../cron-parser";
 
 const _ = cockpit.gettext;
@@ -53,18 +53,20 @@ export const AddCronJobDialog = ({ level, job, onClose, onSaved }: AddCronJobDia
     const [customSchedule, setCustomSchedule] = useState(
         job !== undefined && !(SCHEDULE_PRESETS as readonly string[]).includes(job.schedule));
     const [schedule, setSchedule] = useState<string>(job?.schedule ?? SCHEDULE_PRESETS[1]);
-    const [command, setCommand] = useState(job !== undefined ? unwrapLoggingCommand(job.command) : "");
+    const [command, setCommand] = useState(job !== undefined ? displayCommand(job.command) : "");
     const [label, setLabel] = useState(job?.label ?? "");
     const [error, setError] = useState<string | null>(null);
+    const [inProgress, setInProgress] = useState(false);
 
     const isEditing = job !== undefined;
     const isScheduleValid = isValidSchedule(schedule);
     const isValid = isScheduleValid && command.trim() !== "";
 
     const submit = () => {
-        if (!isValid)
+        if (inProgress || !isValid)
             return;
 
+        setInProgress(true);
         const save = isEditing
             ? updateCronJob(level, job!, schedule.trim(), command.trim(), label.trim())
             : addCronJob(level, schedule.trim(), command.trim(), label.trim());
@@ -73,6 +75,7 @@ export const AddCronJobDialog = ({ level, job, onClose, onSaved }: AddCronJobDia
                 .then(onSaved)
                 .catch(error => {
                     console.warn("Failed to save cron job:", error);
+                    setInProgress(false);
                     setError(isEditing ? _("Failed to save the cron job") : _("Failed to add the cron job"));
                 });
     };
@@ -136,7 +139,7 @@ export const AddCronJobDialog = ({ level, job, onClose, onSaved }: AddCronJobDia
                         />
                     </FormGroup>
                     <ActionGroup>
-                        <Button id="cron-add-submit" variant="primary" type="submit" isDisabled={!isValid}>
+                        <Button id="cron-add-submit" variant="primary" type="submit" isDisabled={!isValid || inProgress} isLoading={inProgress}>
                             {isEditing ? _("Save") : _("Add job")}
                         </Button>
                         <Button variant="link" onClick={onClose}>
