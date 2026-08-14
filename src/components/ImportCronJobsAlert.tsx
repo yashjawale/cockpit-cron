@@ -48,9 +48,11 @@ export const ImportCronJobsAlert = ({ level, reload, onImported }: ImportCronJob
                     if (!cancelled)
                         setImportable(result);
                 })
-                .catch(() => {
-                    if (!cancelled)
+                .catch(error => {
+                    if (!cancelled) {
                         setImportable([]);
+                        console.warn("Failed to read importable cron jobs:", error);
+                    }
                 });
 
         return () => {

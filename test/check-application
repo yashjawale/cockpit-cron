@@ -1517,6 +1517,38 @@ class TestApplication(testlib.MachineCase):
         m.execute("su admin -c 'crontab -r' || true")
         m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
 
+    def testUnreadableCrontabShowsError(self):
+        b = self.browser
+        m = self.machine
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+
+        # deny cron for the admin user, so reading the crontab fails
+        m.execute("cp /etc/cron.deny /tmp/cron.deny.orig 2>/dev/null || true")
+        m.execute("echo admin > /etc/cron.deny")
+
+        self.login_and_go("/cron")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+
+        # the read failure is reported instead of an empty job list
+        b.wait_visible("#cron-jobs-error")
+        b.wait_in_text("#cron-jobs-error", "Failed to read the cron jobs")
+
+        # allow cron again; the list goes back to the regular empty state
+        m.execute("if [ -f /tmp/cron.deny.orig ]; then cp /tmp/cron.deny.orig /etc/cron.deny; "
+                  "else rm -f /etc/cron.deny; fi; rm -f /tmp/cron.deny.orig")
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_text(".pf-v6-c-empty-state__body", "No user cron jobs")
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
 if __name__ == '__main__':
     testlib.test_main()
 

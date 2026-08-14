@@ -5,6 +5,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { Alert } from "@patternfly/react-core/dist/esm/components/Alert";
 import { DataList } from "@patternfly/react-core/dist/esm/components/DataList";
 import { EmptyState, EmptyStateBody } from "@patternfly/react-core/dist/esm/components/EmptyState";
 
@@ -58,11 +59,13 @@ export interface CronJobsListProps {
 export const CronJobsList = ({ level, filter, reload, logRefresh, highlight, onEdit, onDelete, onPruneLogs, onSkip, onReload }: CronJobsListProps) => {
     const [jobs, setJobs] = useState<CronJob[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         let cancelled = false;
 
         setLoading(true);
+        setError(null);
         readCronJobs(level)
                 .then(result => {
                     if (!cancelled) {
@@ -70,9 +73,10 @@ export const CronJobsList = ({ level, filter, reload, logRefresh, highlight, onE
                         setLoading(false);
                     }
                 })
-                .catch(() => {
+                .catch(error => {
                     if (!cancelled) {
                         setJobs([]);
+                        setError(error instanceof Error ? error.message : String(error));
                         setLoading(false);
                     }
                 });
@@ -149,27 +153,37 @@ export const CronJobsList = ({ level, filter, reload, logRefresh, highlight, onE
     return (
         loading
             ? <EmptyState><EmptyStateBody>{_("Loading cron jobs...")}</EmptyStateBody></EmptyState>
-            : filteredJobs.length === 0
-                ? <EmptyState><EmptyStateBody><div>{emptyCaption}</div></EmptyStateBody></EmptyState>
-                : (
-                    <DataList aria-label={_("Cron jobs")}>
-                        {filteredJobs.map(job => (
-                            <CronJobRow
-                                key={job.id}
-                                level={level}
-                                job={job}
-                                onEdit={onEdit}
-                                onDelete={onDelete}
-                                onToggleLogging={toggleLogging}
-                                onPruneLogs={onPruneLogs}
-                                logRefresh={logRefresh}
-                                onSkip={onSkip}
-                                onToggleEnabled={toggleEnabled}
-                                highlight={highlight !== null && jobKey(job) === highlight.key}
-                                highlightTick={highlight?.tick ?? 0}
-                            />
-                        ))}
-                    </DataList>
+            : error !== null
+                ? (
+                    <EmptyState>
+                        <EmptyStateBody>
+                            <Alert id="cron-jobs-error" isInline variant="danger" title={_("Failed to read the cron jobs")}>
+                                {error}
+                            </Alert>
+                        </EmptyStateBody>
+                    </EmptyState>
                 )
+                : filteredJobs.length === 0
+                    ? <EmptyState><EmptyStateBody><div>{emptyCaption}</div></EmptyStateBody></EmptyState>
+                    : (
+                        <DataList aria-label={_("Cron jobs")}>
+                            {filteredJobs.map(job => (
+                                <CronJobRow
+                                    key={job.id}
+                                    level={level}
+                                    job={job}
+                                    onEdit={onEdit}
+                                    onDelete={onDelete}
+                                    onToggleLogging={toggleLogging}
+                                    onPruneLogs={onPruneLogs}
+                                    logRefresh={logRefresh}
+                                    onSkip={onSkip}
+                                    onToggleEnabled={toggleEnabled}
+                                    highlight={highlight !== null && jobKey(job) === highlight.key}
+                                    highlightTick={highlight?.tick ?? 0}
+                                />
+                            ))}
+                        </DataList>
+                    )
     );
 };
