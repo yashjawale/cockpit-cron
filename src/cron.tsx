@@ -231,6 +231,20 @@ function annotationText(line: string): string {
 }
 
 /**
+ * The value of the given annotation on a comment line, parsed as leniently as
+ * the parser reads it, e.g. "backup" for both "# @label backup" and
+ * "# @label  backup". Returns null when the line does not carry the
+ * annotation.
+ *
+ * @param line - the raw crontab line
+ * @param annotation - the annotation name, e.g. "label" or "log"
+ */
+function annotationValue(line: string, annotation: string): string | null {
+    const match = line.match(new RegExp(`^#+\\s*@${annotation}\\s+(.+)$`));
+    return match ? match[1].trim() : null;
+}
+
+/**
  * The index at which a comment line above the given job line belongs, i.e.
  * directly above the job or, for a skipped job, above its skip markers, so
  * that the generated resume job keeps finding the job line right after the
@@ -276,13 +290,12 @@ function jobEntryIndexes(lines: string[], job: CronJob): number[] {
 
     if (job.skipToken !== undefined) {
         for (let i = 0; i < lines.length; i++) {
-            const text = annotationText(lines[i]);
-            if (text === `@token ${job.skipToken}`) {
+            if (annotationValue(lines[i], "token") === job.skipToken) {
                 indexes.push(i);
-                if (annotationText(lines[i - 1] ?? "").startsWith("@skipuntil "))
+                if (annotationValue(lines[i - 1] ?? "", "skipuntil") !== null)
                     indexes.push(i - 1);
             }
-            if (text === `@resume ${job.skipToken}`) {
+            if (annotationValue(lines[i], "resume") === job.skipToken) {
                 indexes.push(i);
                 if (i + 1 < lines.length)
                     indexes.push(i + 1);
@@ -341,7 +354,7 @@ function jobLineIndex(lines: string[], job: CronJob): number {
 function findLabelLine(lines: string[], job: CronJob, jobIndex: number): number {
     for (let i = jobIndex - 1; i >= 0; i--) {
         const text = annotationText(lines[i]);
-        if (text === `@label ${job.label}`)
+        if (annotationValue(lines[i], "label") === job.label)
             return i;
         if (text.startsWith("@skipuntil ") || text.startsWith("@token "))
             continue;
@@ -365,7 +378,7 @@ function findLogLine(lines: string[], job: CronJob, jobIndex: number): number {
         return -1;
     for (let i = jobIndex - 1; i >= 0; i--) {
         const text = annotationText(lines[i]);
-        if (text === `@log ${job.logFile}`)
+        if (annotationValue(lines[i], "log") === job.logFile)
             return i;
         if (text.startsWith("@skipuntil ") || text.startsWith("@token ") || text.startsWith("@label "))
             continue;
@@ -391,16 +404,15 @@ function removeSkipState(lines: string[], job: CronJob): number {
     let removedAbove = 0;
     const remove = new Set<number>();
     for (let i = 0; i < lines.length; i++) {
-        const text = annotationText(lines[i]);
-        if (text === `@token ${token}`) {
+        if (annotationValue(lines[i], "token") === token) {
             remove.add(i);
             removedAbove++;
-            if (annotationText(lines[i - 1] ?? "").startsWith("@skipuntil ")) {
+            if (annotationValue(lines[i - 1] ?? "", "skipuntil") !== null) {
                 remove.add(i - 1);
                 removedAbove++;
             }
         }
-        if (text === `@resume ${token}`) {
+        if (annotationValue(lines[i], "resume") === token) {
             remove.add(i);
             if (i + 1 < lines.length)
                 remove.add(i + 1);
@@ -697,9 +709,8 @@ export async function setCronJobLogging(level: CronLevel, job: CronJob, enabled:
         // drop the "@log" comment above the job, which shifts the job up by one
         let removed = 0;
         if (job.logFile !== undefined) {
-            const logComment = `@log ${job.logFile}`;
             for (let i = jobIndex - 1; i >= 0; i--) {
-                if (annotationText(lines[i]) === logComment) {
+                if (annotationValue(lines[i], "log") === job.logFile) {
                     lines.splice(i, 1);
                     removed = 1;
                     break;

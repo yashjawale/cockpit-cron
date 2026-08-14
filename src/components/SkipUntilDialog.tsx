@@ -10,6 +10,7 @@ import { Alert } from "@patternfly/react-core/dist/esm/components/Alert";
 import { Button } from "@patternfly/react-core/dist/esm/components/Button";
 import { DatePicker } from "@patternfly/react-core/dist/esm/components/DatePicker";
 import { Form, FormGroup } from "@patternfly/react-core/dist/esm/components/Form";
+import { HelperText, HelperTextItem } from "@patternfly/react-core/dist/esm/components/HelperText";
 import { Modal, ModalBody, ModalHeader } from "@patternfly/react-core/dist/esm/components/Modal";
 import { TextInput } from "@patternfly/react-core/dist/esm/components/TextInput";
 
@@ -71,6 +72,13 @@ export const SkipUntilDialog = ({ level, job, onClose, onSaved }: SkipUntilDialo
 
     const isSkipped = job.skipUntil !== undefined;
 
+    /**
+     * Whether the chosen date and time can be honored by a cron schedule.
+     * A resume job is a plain five field schedule without a year, so it fires
+     * on the next occurrence of the chosen month and day. Only a date that is
+     * that next occurrence is accepted; any other date would resume the job
+     * at the wrong time.
+     */
     const isDateTimeValid = () => {
         const dateMatch = skipDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
         const timeMatch = skipTime.match(/^(\d{2}):(\d{2})$/);
@@ -84,11 +92,37 @@ export const SkipUntilDialog = ({ level, job, onClose, onSaved }: SkipUntilDialo
             return false;
 
         // reject impossible dates such as February 31 by round-tripping them
-        const parsed = new Date(year, month - 1, day, hour, minute);
-        return parsed.getFullYear() === year &&
-            parsed.getMonth() === month - 1 &&
-            parsed.getDate() === day &&
-            parsed.getTime() > Date.now();
+        const chosen = new Date(year, month - 1, day, hour, minute);
+        if (chosen.getFullYear() !== year ||
+                chosen.getMonth() !== month - 1 ||
+                chosen.getDate() !== day)
+            return false;
+
+        // the next occurrence of the chosen month, day, and time
+        const next = new Date(new Date().getFullYear(), month - 1, day, hour, minute);
+        if (next.getTime() <= Date.now())
+            next.setFullYear(next.getFullYear() + 1);
+        return chosen.getTime() === next.getTime();
+    };
+
+    /** Whether the date is well formed but not the next occurrence, for a hint. */
+    const isTooFarAhead = () => {
+        const dateMatch = skipDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        const timeMatch = skipTime.match(/^(\d{2}):(\d{2})$/);
+        if (!dateMatch || !timeMatch)
+            return false;
+        const [, year, month, day] = dateMatch.map(Number);
+        const hour = Number(timeMatch[1]);
+        const minute = Number(timeMatch[2]);
+        if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59)
+            return false;
+        const chosen = new Date(year, month - 1, day, hour, minute);
+        if (chosen.getFullYear() !== year || chosen.getMonth() !== month - 1 || chosen.getDate() !== day)
+            return false;
+        const next = new Date(new Date().getFullYear(), month - 1, day, hour, minute);
+        if (next.getTime() <= Date.now())
+            next.setFullYear(next.getFullYear() + 1);
+        return chosen.getTime() !== next.getTime();
     };
 
     const submit = () => {
@@ -138,6 +172,13 @@ export const SkipUntilDialog = ({ level, job, onClose, onSaved }: SkipUntilDialo
                                 setError(null);
                             }}
                         />
+                        {isTooFarAhead() && (
+                            <HelperText>
+                                <HelperTextItem variant="warning">
+                                    {_("The date must be within the next occurrence of the chosen month and day.")}
+                                </HelperTextItem>
+                            </HelperText>
+                        )}
                     </FormGroup>
                     <FormGroup label={_("Skip until time")} fieldId="cron-skip-time">
                         <TextInput
