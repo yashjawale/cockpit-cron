@@ -126,6 +126,11 @@ plus the markers that link them:
   job's schedule is computed by converting that instant into the server's own
   timezone (`date -d @<epoch>`), so the job resumes at the intended moment
   even when the browser and the server use different timezones.
+- Because the resume job is a plain five field schedule without a year, it
+  fires on the next occurrence of the chosen month and day. The dialog
+  therefore only accepts a date that *is* the next occurrence of its month
+  and day (e.g. skipping until February 29 works, skipping until a date two
+  years out does not), and shows a hint for dates it cannot honor.
 - The resume job runs at the exact minute the skip ends and rewrites the
   crontab itself: it strips the skip markers and its own lines and
   uncomments the job, so the job runs again from then on. This works even

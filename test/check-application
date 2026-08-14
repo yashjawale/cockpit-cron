@@ -40,6 +40,17 @@ class TestApplication(testlib.MachineCase):
         job's cron schedule cannot encode a year."""
         return (datetime.date.today() + datetime.timedelta(days=days)).isoformat()
 
+    def next_leap_day(self):
+        """The next February 29, which is the next occurrence of a leap day and
+        therefore a valid skip date."""
+        year = datetime.date.today().year
+        while True:
+            try:
+                datetime.date(year, 2, 29)
+                return f"{year}-02-29"
+            except ValueError:
+                year += 1
+
     def testBasic(self):
         b = self.browser
         m = self.machine
@@ -638,9 +649,44 @@ class TestApplication(testlib.MachineCase):
         b.wait_attr("#cron-skip-submit", "disabled", "")
         b.wait_in_text(".pf-v6-c-helper-text__item-text", "next occurrence")
 
+        # a leap day is the next occurrence of its month and day, so it is
+        # accepted even though it is years away
+        b.set_input_text("#cron-skip-date", self.next_leap_day())
+        b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+
         # a valid future time enables it again
         b.set_input_text("#cron-skip-date", self.future_date())
         b.set_input_text("#cron-skip-time", "12:00")
+        b.wait_attr("#cron-skip-submit", "disabled", None)
+
+        # clean up the user crontab again
+        m.execute("su admin -c 'crontab -r' || true")
+
+    def testSkipUntilSecondsTimestamp(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+
+        # ensure a clean user crontab, also when a previous test run failed
+        m.execute("su admin -c 'crontab -r' || true")
+        d = self.future_date()
+        self.seed_managed_crontab("user", lines=[f"# @skipuntil {d}T12:00:00", "0 4 * * 1 /usr/bin/uptime"])
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        b.wait_attr_contains("#cron-level-user", "class", "pf-m-selected")
+        b.wait_in_text(".pf-v6-c-data-list__item", "Skipped until")
+
+        # the dialog tolerates a hand-edited timestamp that carries seconds
+        b.click(".pf-v6-c-data-list__item-action .pf-v6-c-menu-toggle")
+        b.wait_visible(".pf-v6-c-menu")
+        b.click(".pf-v6-c-menu__item:contains('Skip until...')")
+        b.wait_visible("#cron-skip-date")
+        b.wait_val("#cron-skip-date", d)
+        b.wait_val("#cron-skip-time", "12:00")
         b.wait_attr("#cron-skip-submit", "disabled", None)
 
         # clean up the user crontab again
