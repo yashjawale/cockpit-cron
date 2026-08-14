@@ -7,8 +7,11 @@ individual operations keep the file consistent.
 
 All reads go through `crontab -l` (`crontabCommand(level, write=false)`),
 which for system level becomes `crontab -l -u root` with
-`superuser: "require"`. If no crontab exists yet (or `crontab` is not
-installed), the read fails and is treated as an empty crontab.
+`superuser: "require"`. A read that fails because no crontab exists yet
+(`crontab: no crontab for <user>`) is treated as an empty crontab; any other
+failure, e.g. missing permissions, cron being denied for the user, or
+`crontab` not being installed, is passed on to the UI, which shows an error
+instead of an empty job list.
 
 Two views of the crontab are derived from the same raw content:
 

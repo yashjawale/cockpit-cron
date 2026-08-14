@@ -53,15 +53,23 @@ function crontabCommand(level: CronLevel, write: boolean): CrontabCommand {
  *
  * @param level which set of crontabs to read
  * @returns a promise for the raw crontab contents, empty if the crontab does
- *     not exist or crontab is not installed
+ *     not exist yet
+ * @throws if reading the crontab failed for any other reason, e.g. missing
+ *     permissions, cron being denied for the user, or cron not being installed
  */
 async function readCrontabContent(level: CronLevel): Promise<string> {
     const { args, options } = crontabCommand(level, false);
     try {
         return await cockpit.spawn(args, options);
-    } catch {
-        // no crontab exists yet (or crontab is not installed)
-        return "";
+    } catch (error) {
+        // A user without a crontab gets "crontab: no crontab for <user>",
+        // which is normal and means there are no jobs yet. Any other failure
+        // is a real problem and is passed on, so that the UI can report it
+        // instead of hiding it behind an empty job list.
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes("no crontab"))
+            return "";
+        throw error;
     }
 }
 
