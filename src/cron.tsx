@@ -356,7 +356,7 @@ function findLabelLine(lines: string[], job: CronJob, jobIndex: number): number 
         const text = annotationText(lines[i]);
         if (annotationValue(lines[i], "label") === job.label)
             return i;
-        if (text.startsWith("@skipuntil ") || text.startsWith("@token "))
+        if (text.startsWith("@skipuntil ") || text.startsWith("@token ") || text.startsWith("@log "))
             continue;
         break;
     }
