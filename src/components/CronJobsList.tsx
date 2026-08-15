@@ -11,7 +11,7 @@ import { EmptyState, EmptyStateBody } from "@patternfly/react-core/dist/esm/comp
 
 import cockpit from 'cockpit';
 
-import { readCronJobs, setCronJobEnabled, setCronJobLogging, setCronJobSkipUntil, displayCommand, type CronJob, type CronLevel } from "../cron";
+import { readCronJobs, setCronJobEnabled, setCronJobSkipUntil, displayCommand, type CronJob, type CronLevel } from "../cron";
 import { CronJobRow } from "./CronJobRow";
 
 const _ = cockpit.gettext;
@@ -42,12 +42,12 @@ export interface CronJobsListProps {
     onEdit: (job: CronJob) => void;
     /** callback invoked when the user wants to delete a job */
     onDelete: (job: CronJob) => void;
+    /** callback invoked when the user wants to enable or disable logging */
+    onToggleLogging: (job: CronJob, enabled: boolean) => void;
     /** callback invoked when the user wants to prune a job's logs */
     onPruneLogs: (job: CronJob) => void;
     /** callback invoked when the user wants to skip a job until a date */
     onSkip: (job: CronJob) => void;
-    /** callback invoked after a change that needs the job list reloaded */
-    onReload: () => void;
 }
 
 /**
@@ -56,7 +56,7 @@ export interface CronJobsListProps {
  * The jobs are read from the system whenever the level changes and rendered
  * as rows with a loading and an empty state.
  */
-export const CronJobsList = ({ level, filter, reload, logRefresh, highlight, onEdit, onDelete, onPruneLogs, onSkip, onReload }: CronJobsListProps) => {
+export const CronJobsList = ({ level, filter, reload, logRefresh, highlight, onEdit, onDelete, onToggleLogging, onPruneLogs, onSkip }: CronJobsListProps) => {
     const [jobs, setJobs] = useState<CronJob[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -129,15 +129,6 @@ export const CronJobsList = ({ level, filter, reload, logRefresh, highlight, onE
                 });
     };
 
-    // enable or disable logging of a job's output, then reload the jobs
-    const toggleLogging = (job: CronJob, enabled: boolean) => {
-        setCronJobLogging(level, job, enabled)
-                .then(onReload)
-                .catch(error => {
-                    console.warn("Failed to change cron job logging:", error);
-                });
-    };
-
     const filteredJobs = filter
         ? jobs.filter(job => {
             const command = displayCommand(job.command).toLowerCase();
@@ -176,7 +167,7 @@ export const CronJobsList = ({ level, filter, reload, logRefresh, highlight, onE
                                     job={job}
                                     onEdit={onEdit}
                                     onDelete={onDelete}
-                                    onToggleLogging={toggleLogging}
+                                    onToggleLogging={onToggleLogging}
                                     onPruneLogs={onPruneLogs}
                                     logRefresh={logRefresh}
                                     onSkip={onSkip}

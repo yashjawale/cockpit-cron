@@ -431,10 +431,11 @@ function removeSkipState(lines: string[], job: CronJob): number {
 /**
  * Delete a cron job from the crontab of the given level.
  *
- * Removes the line the job was parsed from, its label comment, and any skip
- * state including the generated resume job. One adjacent blank line that
- * separated the job entry is dropped as well. Deleting system level jobs
- * requires administrative access.
+ * Removes the line the job was parsed from, its label and log comments, and
+ * any skip state including the generated resume job. One adjacent blank line
+ * that separated the job entry is dropped as well. The log file of a logged
+ * job is deleted together with the job. Deleting system level jobs requires
+ * administrative access.
  *
  * @param level which set of crontabs to modify
  * @param job the job to remove
@@ -457,6 +458,10 @@ export async function deleteCronJob(level: CronLevel, job: CronJob): Promise<voi
 
     [...remove].sort((a, b) => b - a).forEach(i => lines.splice(i, 1));
     await writeCrontabContent(level, lines.join("\n"));
+
+    // the log file belongs to the job and is removed with it
+    if (job.logFile !== undefined)
+        await pruneCronJobLog(level, job);
 }
 
 /**
@@ -683,9 +688,9 @@ function logSpawnOptions(level: CronLevel): { superuser?: "require" } {
  *
  * Enabling wraps the job's command so that its output is appended to a log
  * file, with a marker line identifying each run, and stores the file path in
- * a "@log" comment above the job. Disabling removes the comment and restores
- * the original command. Modifying system level jobs requires administrative
- * access.
+ * a "@log" comment above the job. Disabling removes the comment, restores the
+ * original command, and deletes the log file, as it belongs to the job.
+ * Modifying system level jobs requires administrative access.
  *
  * @param level which set of crontabs to modify
  * @param job the job to enable or disable logging for
@@ -721,6 +726,10 @@ export async function setCronJobLogging(level: CronLevel, job: CronJob, enabled:
     }
 
     await writeCrontabContent(level, lines.join("\n"));
+
+    // a disabled job no longer keeps its log file around
+    if (!enabled && job.logFile !== undefined)
+        await pruneCronJobLog(level, job);
 }
 
 /**

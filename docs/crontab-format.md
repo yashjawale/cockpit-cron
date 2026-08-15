@@ -81,6 +81,8 @@ that file, each run prefixed with a marker line:
 - `loggingCommand()` / `unwrapLoggingCommand()` perform the wrapping in both
   directions. `date -Iseconds` is used instead of a `%`-format so that cron
   does not convert `%` characters into newlines.
+- The log file belongs to the job: disabling logging or deleting the job
+  removes the `@log` comment and deletes the log file.
 
 ## Special characters in commands
 
