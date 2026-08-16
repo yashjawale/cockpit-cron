@@ -32,8 +32,9 @@ export interface DeleteCronJobDialogProps {
 /**
  * Confirmation dialog for deleting a cron job.
  *
- * Shows the job to be removed and offers a danger delete button. Failures
- * are reported inline.
+ * Shows the job to be removed and offers a danger delete button. When the job
+ * has logging enabled, the dialog warns that its log file will be deleted as
+ * well. Failures are reported inline.
  */
 export const DeleteCronJobDialog = ({ level, job, onClose, onDeleted }: DeleteCronJobDialogProps) => {
     const [inProgress, setInProgress] = useState(false);
@@ -61,6 +62,9 @@ export const DeleteCronJobDialog = ({ level, job, onClose, onDeleted }: DeleteCr
             <ModalBody>
                 {error !== null && <Alert variant="danger" isInline title={_("Failed to delete the cron job")} />}
                 <p>{cockpit.format(_("The cron job \"$0\" will be permanently removed."), display)}</p>
+                {job.logFile !== undefined && (
+                    <p>{cockpit.format(_("Its log file \"$0\" will be deleted along with it."), job.logFile)}</p>
+                )}
             </ModalBody>
             <ModalFooter>
                 <Button id="cron-delete-submit" variant="danger" isLoading={inProgress} isDisabled={inProgress} onClick={submit}>

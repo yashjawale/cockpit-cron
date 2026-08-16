@@ -26,6 +26,7 @@ logic free of any Cockpit dependency and therefore easily unit-testable.
 | `src/components/SkipUntilDialog.tsx` | "skip until" dialog and resume action |
 | `src/components/CronJobLogs.tsx` | expandable log viewer for jobs with logging enabled |
 | `src/components/PruneLogsDialog.tsx` | confirmation dialog for deleting a job's log file |
+| `src/components/ToggleLoggingDialog.tsx` | confirmation dialog for enabling or disabling a job's logging |
 | `src/components/LevelSwitcher.tsx` | system/user level switcher buttons |
 
 All UI state is local to `Application` and its children; there is no central

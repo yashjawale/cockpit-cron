@@ -14,6 +14,7 @@ import { DeleteCronJobDialog } from "./components/DeleteCronJobDialog";
 import { ImportCronJobsAlert } from "./components/ImportCronJobsAlert";
 import { PruneLogsDialog } from "./components/PruneLogsDialog";
 import { SkipUntilDialog } from "./components/SkipUntilDialog";
+import { ToggleLoggingDialog } from "./components/ToggleLoggingDialog";
 import type { CronJob, CronLevel } from "./cron";
 
 /** A job that was just changed, to highlight its row after a reload. */
@@ -34,6 +35,7 @@ export const Application = () => {
     const [editJob, setEditJob] = useState<CronJob | null>(null);
     const [deleteJob, setDeleteJob] = useState<CronJob | null>(null);
     const [pruneJob, setPruneJob] = useState<CronJob | null>(null);
+    const [loggingJob, setLoggingJob] = useState<{ job: CronJob, enabled: boolean } | null>(null);
     const [skipJob, setSkipJob] = useState<CronJob | null>(null);
     const [highlight, setHighlight] = useState<HighlightedJob | null>(null);
     const [reload, setReload] = useState(0);
@@ -65,8 +67,8 @@ export const Application = () => {
                     onEdit={setEditJob}
                     onDelete={setDeleteJob}
                     onPruneLogs={setPruneJob}
+                    onToggleLogging={(job, enabled) => setLoggingJob({ job, enabled })}
                     onSkip={setSkipJob}
-                    onReload={() => setReload(reload + 1)}
                 />
             </PageSection>
             {showDialog && (
@@ -108,6 +110,19 @@ export const Application = () => {
                     onClose={() => setPruneJob(null)}
                     onPruned={() => {
                         setPruneJob(null);
+                        setReload(reload + 1);
+                        setLogRefresh(logRefresh + 1);
+                    }}
+                />
+            )}
+            {loggingJob !== null && (
+                <ToggleLoggingDialog
+                    level={level}
+                    job={loggingJob.job}
+                    enabled={loggingJob.enabled}
+                    onClose={() => setLoggingJob(null)}
+                    onChanged={() => {
+                        setLoggingJob(null);
                         setReload(reload + 1);
                         setLogRefresh(logRefresh + 1);
                     }}

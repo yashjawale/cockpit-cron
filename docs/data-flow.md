@@ -34,10 +34,10 @@ belong to the affected job.
 | --- | --- |
 | `addCronJob()` | inserts the new job (with optional `@label`) just before the `END` marker, or creates the whole region if none exists yet |
 | `updateCronJob()` | rewrites the job line and its label in place, keeping the disabled/comment prefix and re-applying the logging wrapper if the job is logged |
-| `deleteCronJob()` | removes the job line, its label, any skip markers and resume job, and one adjacent blank line |
+| `deleteCronJob()` | removes the job line, its label and log comments, any skip markers and resume job, and one adjacent blank line; the log file of a logged job is deleted along with it |
 | `setCronJobEnabled()` | comments or uncomments the job line in place |
 | `setCronJobSkipUntil()` | replaces the job line with the skip markers, the commented job, and a resume job |
-| `setCronJobLogging()` | wraps the command, adds the `@log` comment, and creates the log directory |
+| `setCronJobLogging()` | wraps the command and adds the `@log` comment when enabling; restores the command, removes the comment, and deletes the log file when disabling |
 
 The annotation state of *other* jobs (labels, `@log`, `@skipuntil`/`@token`,
 resume jobs) is never touched by an unrelated edit, because the edits are
