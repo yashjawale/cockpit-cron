@@ -29,7 +29,7 @@ interface HighlightedJob {
  * Top level application component of the Cron jobs module.
  */
 export const Application = () => {
-    const [level, setLevel] = useState<CronLevel>("system");
+    const [level, setLevel] = useState<CronLevel>("user");
     const [filter, setFilter] = useState("");
     const [showDialog, setShowDialog] = useState(false);
     const [editJob, setEditJob] = useState<CronJob | null>(null);
