@@ -31,18 +31,18 @@ export const LevelSwitcher = ({ level, onSelect }: LevelSwitcherProps) => {
     return (
         <ToggleGroup aria-label={_("Cron job level")}>
             <ToggleGroupItem
-                text={_("System")}
-                icon={<ServerIcon />}
-                buttonId="cron-level-system"
-                isSelected={level === "system"}
-                onChange={() => onSelect("system")}
-            />
-            <ToggleGroupItem
                 text={_("User")}
                 icon={<UserIcon />}
                 buttonId="cron-level-user"
                 isSelected={level === "user"}
                 onChange={() => onSelect("user")}
+            />
+            <ToggleGroupItem
+                text={_("System")}
+                icon={<ServerIcon />}
+                buttonId="cron-level-system"
+                isSelected={level === "system"}
+                onChange={() => onSelect("system")}
             />
         </ToggleGroup>
     );
