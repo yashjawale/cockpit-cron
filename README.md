@@ -1,6 +1,20 @@
 # Cockpit Cron
 
-Scaffolding for a [Cockpit](https://cockpit-project.org/) module.
+A simple [Cockpit](https://cockpit-project.org/) plugin for making it easier to manage cron jobs.
+
+![Cockpit Cron plugin screenshot](./screenshots/cockpit-cron.png)
+
+# Features
+
+- Easily enable/disable cron jobs without deleting them
+- Add labels to jobs to help make identifying them easier
+- View logs of the runs in the UI with a calendar interface
+- Skip executing job until a certain time
+- Supports both system & user cron
+
+# Installation
+
+> TODO: After figuring out distribution channel to use. Currently binaries & tar is available from GitHub releases.
 
 # Development dependencies
 
@@ -190,3 +204,6 @@ up with security updates and bug fixes. This happens with
 see [configuration file](.github/dependabot.yml).
 
 
+---
+
+<a href="https://yashjawale.github.io/" target="_blank"><img style="height: 22px;" src="https://raw.githubusercontent.com/yashjawale/.github/main/docs/logo.svg" alt="Yash Jawale"/></a>
