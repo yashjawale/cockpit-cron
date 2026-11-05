@@ -13,7 +13,7 @@ def main():
             'msgid_plural "$0 cron jobs are not managed by this plugin"') in pot
     assert '#-#-#-#-#' not in pot  # merged headers must not leak into the template
     assert pot.startswith('# Cockpit Cron translation template.\n')
-    assert 'Report-Msgid-Bugs-To: connect@yashjawale.in' in pot
+    assert 'Report-Msgid-Bugs-To: https://github.com/yashjawale/cockpit-cron/issues' in pot
 
 
 if __name__ == "__main__":
