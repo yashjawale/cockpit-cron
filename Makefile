@@ -72,7 +72,9 @@ po/$(PACKAGE_NAME).metainfo.pot: $(APPSTREAMFILE)
 
 po/$(PACKAGE_NAME).pot: po/$(PACKAGE_NAME).html.pot po/$(PACKAGE_NAME).js.pot po/$(PACKAGE_NAME).manifest.pot po/$(PACKAGE_NAME).metainfo.pot
 	# xgettext merges the four catalogs without concatenating their header fields
-	xgettext --output=$@ $^
+	xgettext --package-name=$(PACKAGE_NAME) --package-version=$(VERSION) \
+		--msgid-bugs-address=connect@yashjawale.in --output=$@ $^
+	sed -i '1,/^#$$/c\# Cockpit Cron translation template.\n# SPDX-License-Identifier: LGPL-2.1-or-later\n# Contact: connect@yashjawale.in\n#' $@
 
 po/LINGUAS: $(wildcard po/*.po)
 	echo $(LINGUAS) | tr ' ' '\n' > $@
