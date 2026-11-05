@@ -80,8 +80,8 @@ export const ImportCronJobsAlert = ({ level, reload, onImported }: ImportCronJob
                 isInline
                 variant="info"
                 title={cockpit.format(cockpit.ngettext(
-                    _("$0 cron job is not managed by this plugin"),
-                    _("$0 cron jobs are not managed by this plugin"),
+                    "$0 cron job is not managed by this plugin",
+                    "$0 cron jobs are not managed by this plugin",
                     importable.length
                 ), importable.length)}
             >

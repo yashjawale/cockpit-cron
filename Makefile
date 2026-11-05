@@ -50,7 +50,7 @@ $(COCKPIT_REPO_STAMP): Makefile
 
 LINGUAS=$(basename $(notdir $(wildcard po/*.po)))
 
-po/$(PACKAGE_NAME).js.pot:
+po/$(PACKAGE_NAME).js.pot: $(shell find src/ -name '*.[jt]s' -o -name '*.[jt]sx')
 	xgettext --default-domain=$(PACKAGE_NAME) --output=- --language=C --keyword= \
 		--add-comments=Translators: \
 		--keyword=_:1,1t --keyword=_:1c,2,2t --keyword=C_:1c,2 \
@@ -61,19 +61,20 @@ po/$(PACKAGE_NAME).js.pot:
 		--from-code=UTF-8 $$(find src/ -name '*.[jt]s' -o -name '*.[jt]sx') | \
 		sed '/^#/ s/, c-format//' > $@
 
-po/$(PACKAGE_NAME).html.pot: $(NODE_MODULES_TEST) $(COCKPIT_REPO_STAMP)
+po/$(PACKAGE_NAME).html.pot: $(shell find src/ -name '*.html') $(NODE_MODULES_TEST) $(COCKPIT_REPO_STAMP)
 	pkg/lib/html2po -o $@ $$(find src -name '*.html')
 
-po/$(PACKAGE_NAME).manifest.pot: $(COCKPIT_REPO_STAMP)
+po/$(PACKAGE_NAME).manifest.pot: src/manifest.json $(COCKPIT_REPO_STAMP)
 	pkg/lib/manifest2po -o $@ src/manifest.json
 
 po/$(PACKAGE_NAME).metainfo.pot: $(APPSTREAMFILE)
 	xgettext --default-domain=$(PACKAGE_NAME) --output=$@ $<
 
 po/$(PACKAGE_NAME).pot: po/$(PACKAGE_NAME).html.pot po/$(PACKAGE_NAME).js.pot po/$(PACKAGE_NAME).manifest.pot po/$(PACKAGE_NAME).metainfo.pot
-	msgcat --sort-output --output-file=$@ $^
+	# xgettext merges the four catalogs without concatenating their header fields
+	xgettext --output=$@ $^
 
-po/LINGUAS:
+po/LINGUAS: $(wildcard po/*.po)
 	echo $(LINGUAS) | tr ' ' '\n' > $@
 
 #
@@ -104,7 +105,7 @@ $(DEB_DIR)/rules: packaging/debian/rules packaging/debian/control packaging/debi
 	cp packaging/debian/upstream/metadata $(DEB_DIR)/upstream/metadata
 	chmod +x $(DEB_DIR)/rules
 
-$(DIST_TEST): $(NODE_MODULES_TEST) $(COCKPIT_REPO_STAMP) $(shell find src/ -type f) package.json build.js
+$(DIST_TEST): $(NODE_MODULES_TEST) $(COCKPIT_REPO_STAMP) $(shell find src/ -type f) $(wildcard po/*.po) package.json build.js
 	NODE_ENV=$(NODE_ENV) ./build.js
 
 watch: $(NODE_MODULES_TEST) $(COCKPIT_REPO_STAMP)

@@ -1,0 +1,62 @@
+name: weblate-sync-po
+
+on:
+  schedule:
+    - cron: '0 18 * * 2'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh-translations:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          path: src
+
+      - name: Check out Weblate buffer repository
+        uses: actions/checkout@v7
+        with:
+          repository: yashjawale/cockpit-cron-weblate
+          path: weblate
+
+      - name: Copy and validate translations
+        id: translations
+        run: |
+          if ! compgen -G 'weblate/*.po' > /dev/null; then
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo 'available=true' >> "$GITHUB_OUTPUT"
+          sudo apt-get update
+          sudo apt-get install -y gettext
+          cp weblate/*.po src/po/
+          for file in src/po/*.po; do
+            msgfmt --check --check-format -o /dev/null "$file"
+          done
+
+      - name: Set up Node.js
+        if: steps.translations.outputs.available == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Verify translation build
+        if: steps.translations.outputs.available == 'true'
+        run: make -C src
+
+      - name: Open or update translation PR
+        if: steps.translations.outputs.available == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          path: src
+          branch: automation/weblate-po
+          commit-message: 'Update translations from Weblate'
+          title: 'Update translations from Weblate'
+          body: 'Translations from the Weblate buffer repository. Validated with msgfmt and the Cockpit build; please review before merging.'
+          add-paths: po/*.po
+          delete-branch: true
