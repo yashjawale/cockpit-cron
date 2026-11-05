@@ -77,6 +77,7 @@ po/$(PACKAGE_NAME).pot: po/$(PACKAGE_NAME).html.pot po/$(PACKAGE_NAME).js.pot po
 	sed -i '1,/^#$$/c\# Cockpit Cron translation template.\n# SPDX-License-Identifier: LGPL-2.1-or-later\n# Report source-string issues: https://github.com/yashjawale/cockpit-cron/issues\n#' $@
 
 po/LINGUAS: $(wildcard po/*.po)
+	mkdir -p po
 	echo $(LINGUAS) | tr ' ' '\n' > $@
 
 #
