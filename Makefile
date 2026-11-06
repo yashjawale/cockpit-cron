@@ -49,6 +49,15 @@ $(COCKPIT_REPO_STAMP): Makefile
 #
 
 LINGUAS=$(basename $(notdir $(wildcard po/*.po)))
+PO_CATALOGS=.po-catalogs
+
+# Track the PO file set as well as file contents so removing a language causes
+# stale generated locale bundles to be rebuilt. Ship this stamp in source
+# archives so make install can keep using the prebuilt bundle without Node.js.
+$(PO_CATALOGS): po $(wildcard po/*.po)
+	@find po -maxdepth 1 -type f -name '*.po' -printf '%f\n' | LC_ALL=C sort > $@.tmp
+	@if ! cmp -s $@.tmp $@; then mv $@.tmp $@; else rm $@.tmp; fi
+	@touch $@
 
 po/$(PACKAGE_NAME).js.pot: $(shell find src/ -name '*.[jt]s' -o -name '*.[jt]sx')
 	xgettext --default-domain=$(PACKAGE_NAME) --output=- --language=C --keyword= \
@@ -77,11 +86,10 @@ po/$(PACKAGE_NAME).pot: po/$(PACKAGE_NAME).html.pot po/$(PACKAGE_NAME).js.pot po
 	sed -i -e '/^"POT-Creation-Date:/d' \
 		-e '1,/^#$$/c\# Cockpit Cron translation template.\n# SPDX-License-Identifier: LGPL-2.1-or-later\n# Report source-string issues: https://github.com/yashjawale/cockpit-cron/issues\n#' $@
 
-.PHONY: FORCE po/LINGUAS
-FORCE:
-po/LINGUAS: FORCE $(wildcard po/*.po)
+po/LINGUAS: po $(wildcard po/*.po)
 	mkdir -p po
-	echo $(LINGUAS) | tr ' ' '\n' > $@
+	@echo $(LINGUAS) | tr ' ' '\n' > $@.tmp
+	@if ! cmp -s $@.tmp $@; then mv $@.tmp $@; else rm $@.tmp; fi
 
 #
 # Build/Install/dist
@@ -111,7 +119,7 @@ $(DEB_DIR)/rules: packaging/debian/rules packaging/debian/control packaging/debi
 	cp packaging/debian/upstream/metadata $(DEB_DIR)/upstream/metadata
 	chmod +x $(DEB_DIR)/rules
 
-$(DIST_TEST): $(NODE_MODULES_TEST) $(COCKPIT_REPO_STAMP) $(shell find src/ -type f) po $(wildcard po/*.po) package.json build.js
+$(DIST_TEST): $(NODE_MODULES_TEST) $(COCKPIT_REPO_STAMP) $(shell find src/ -type f) $(PO_CATALOGS) $(wildcard po/*.po) package.json build.js
 	NODE_ENV=$(NODE_ENV) ./build.js
 
 watch: $(NODE_MODULES_TEST) $(COCKPIT_REPO_STAMP)
@@ -122,9 +130,14 @@ clean:
 	rm -f $(SPEC) packaging/arch/PKGBUILD
 	rm -rf $(DEB_DIR) deb-build
 	rm -f po/LINGUAS
+	rm -f $(PO_CATALOGS) $(PO_CATALOGS).tmp po/LINGUAS.tmp
 	rm -f metafile.json runtime-npm-modules.txt
 
+ifeq ($(PREBUILT_BUNDLE),1)
+install: po/LINGUAS
+else
 install: $(DIST_TEST) po/LINGUAS
+endif
 	mkdir -p $(DESTDIR)$(PREFIX)/share/cockpit/$(WEB_DIR)
 	cp -r dist/* $(DESTDIR)$(PREFIX)/share/cockpit/$(WEB_DIR)
 	mkdir -p $(DESTDIR)$(PREFIX)/share/metainfo/
@@ -153,12 +166,12 @@ dist: $(TARFILE)
 # pre-built dist/ (so it's not necessary) and ship package-lock.json (so that
 # node_modules/ can be reconstructed if necessary)
 $(TARFILE): export NODE_ENV=production
-$(TARFILE): $(DIST_TEST) $(SPEC) packaging/arch/PKGBUILD $(DEB_DIR)/rules
+$(TARFILE): $(DIST_TEST) po/LINGUAS $(SPEC) packaging/arch/PKGBUILD $(DEB_DIR)/rules
 	if type appstream-util >/dev/null 2>&1; then appstream-util validate-relax --nonet *.metainfo.xml; fi
 	tar --xz $(TAR_ARGS) -cf $(TARFILE) --transform 's,^,$(RPM_NAME)/,' \
 		--exclude packaging/$(SPEC).in --exclude node_modules \
 		$$(git ls-files) $(COCKPIT_REPO_FILES) $(NODE_MODULES_TEST) $(DIST_TEST) \
-		$(SPEC) packaging/arch/PKGBUILD $(DEB_DIR) dist/
+		$(SPEC) packaging/arch/PKGBUILD $(DEB_DIR) dist/ $(PO_CATALOGS) po/LINGUAS
 
 $(NODE_CACHE): $(NODE_MODULES_TEST)
 	tools/node-modules runtime-tar $(NODE_CACHE)

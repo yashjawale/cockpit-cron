@@ -23,6 +23,7 @@
 /cockpit-navigator.spec
 /dist/
 /metafile.json
+/.po-catalogs
 /package-lock.json
 /pkg/
 /node_modules/
@@ -34,6 +35,7 @@
 /packaging/arch/PKGBUILD
 /packaging/debian/changelog
 /po/*.pot
+/po/.catalogs
 /po/LINGUAS
 /test/common/
 /test/images/
