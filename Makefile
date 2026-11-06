@@ -72,11 +72,14 @@ po/$(PACKAGE_NAME).metainfo.pot: $(APPSTREAMFILE)
 
 po/$(PACKAGE_NAME).pot: po/$(PACKAGE_NAME).html.pot po/$(PACKAGE_NAME).js.pot po/$(PACKAGE_NAME).manifest.pot po/$(PACKAGE_NAME).metainfo.pot
 	# xgettext merges the four catalogs without concatenating their header fields
-	xgettext --package-name=$(PACKAGE_NAME) --package-version=$(VERSION) \
+	xgettext --package-name=$(PACKAGE_NAME) --package-version=development \
 		--msgid-bugs-address=https://github.com/yashjawale/cockpit-cron/issues --output=$@ $^
-	sed -i '1,/^#$$/c\# Cockpit Cron translation template.\n# SPDX-License-Identifier: LGPL-2.1-or-later\n# Report source-string issues: https://github.com/yashjawale/cockpit-cron/issues\n#' $@
+	sed -i -e '/^"POT-Creation-Date:/d' \
+		-e '1,/^#$$/c\# Cockpit Cron translation template.\n# SPDX-License-Identifier: LGPL-2.1-or-later\n# Report source-string issues: https://github.com/yashjawale/cockpit-cron/issues\n#' $@
 
-po/LINGUAS: $(wildcard po/*.po)
+.PHONY: FORCE po/LINGUAS
+FORCE:
+po/LINGUAS: FORCE $(wildcard po/*.po)
 	mkdir -p po
 	echo $(LINGUAS) | tr ' ' '\n' > $@
 
@@ -108,7 +111,7 @@ $(DEB_DIR)/rules: packaging/debian/rules packaging/debian/control packaging/debi
 	cp packaging/debian/upstream/metadata $(DEB_DIR)/upstream/metadata
 	chmod +x $(DEB_DIR)/rules
 
-$(DIST_TEST): $(NODE_MODULES_TEST) $(COCKPIT_REPO_STAMP) $(shell find src/ -type f) $(wildcard po/*.po) package.json build.js
+$(DIST_TEST): $(NODE_MODULES_TEST) $(COCKPIT_REPO_STAMP) $(shell find src/ -type f) po $(wildcard po/*.po) package.json build.js
 	NODE_ENV=$(NODE_ENV) ./build.js
 
 watch: $(NODE_MODULES_TEST) $(COCKPIT_REPO_STAMP)

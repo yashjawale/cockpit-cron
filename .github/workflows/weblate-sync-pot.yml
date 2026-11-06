@@ -5,6 +5,13 @@ on:
     - cron: '45 2 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: weblate-sync-pot
+  cancel-in-progress: false
+
 jobs:
   upload-template:
     runs-on: ubuntu-latest
@@ -25,7 +32,7 @@ jobs:
       - name: Generate and check the template
         run: |
           make -C src po/cockpit-cron.pot
-          python3 src/test/check-i18n-template src/po/cockpit-cron.pot
+          python3 src/scripts/check-i18n-template.py src/po/cockpit-cron.pot
 
       - name: Check out Weblate buffer repository
         uses: actions/checkout@v7
@@ -37,6 +44,7 @@ jobs:
       - name: Publish template when changed
         run: |
           cp src/po/cockpit-cron.pot weblate/cockpit-cron.pot
+          git -C weblate add -N cockpit-cron.pot
           if ! git -C weblate diff --quiet -- cockpit-cron.pot; then
             git -C weblate config user.name 'Cockpit Cron translation bot'
             git -C weblate config user.email 'actions@users.noreply.github.com'
