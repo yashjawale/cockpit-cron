@@ -33,6 +33,20 @@ All UI state is local to `Application` and its children; there is no central
 store. A `reload` counter is bumped after every write so that the list and the
 import alert refetch the crontab.
 
+### Localization and build
+
+User-facing strings in TSX use Cockpit's gettext API; `src/index.html`,
+`src/manifest.json`, and AppStream metadata provide additional strings.
+`Makefile` extracts them into a generated `po/cockpit-cron.pot`, while
+`build.js` uses Cockpit's PO plugin to turn committed `po/*.po` catalogs into
+locale-specific JavaScript files. English strings are the fallback when a
+translation is unavailable. The navigation manifest and AppStream metadata
+have their own translated outputs.
+
+Weblate writes to a separate `cockpit-cron-weblate` repository rather than to
+this source repository. GitHub Actions publish the generated template there
+and propose updated PO catalogs here as reviewable pull requests.
+
 ### Service layer
 
 `src/cron.tsx` contains every operation the UI can trigger. It reads the raw

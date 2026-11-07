@@ -1,0 +1,54 @@
+name: weblate-sync-pot
+
+on:
+  schedule:
+    - cron: '45 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weblate-sync-pot
+  cancel-in-progress: false
+
+jobs:
+  upload-template:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          path: src
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install gettext
+        run: sudo apt-get update && sudo apt-get install -y gettext
+
+      - name: Generate and check the template
+        run: |
+          make -C src po/cockpit-cron.pot
+          python3 src/scripts/check-i18n-template.py src/po/cockpit-cron.pot
+
+      - name: Check out Weblate buffer repository
+        uses: actions/checkout@v7
+        with:
+          repository: yashjawale/cockpit-cron-weblate
+          path: weblate
+          ssh-key: ${{ secrets.WEBLATE_REPO_DEPLOY_KEY }}
+
+      - name: Publish template when changed
+        run: |
+          cp src/po/cockpit-cron.pot weblate/cockpit-cron.pot
+          git -C weblate add -N cockpit-cron.pot
+          if ! git -C weblate diff --quiet -- cockpit-cron.pot; then
+            git -C weblate config user.name 'Cockpit Cron translation bot'
+            git -C weblate config user.email 'actions@users.noreply.github.com'
+            git -C weblate add cockpit-cron.pot
+            git -C weblate commit -m 'Update source strings'
+            git -C weblate push
+          fi

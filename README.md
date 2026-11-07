@@ -123,6 +123,30 @@ Violations of some rules can be fixed automatically by:
 
 Rules configuration can be found in the `.stylelintrc.json` file.
 
+# Translating
+
+English strings in `src/` and the AppStream metainfo file are the source of
+translations. To inspect the gettext template, run `make po/cockpit-cron.pot`;
+this requires gettext, Node.js, and the build dependencies listed above. The
+template (`.pot`) is generated, not committed to this repository. Actual
+translations live in `po/<language>.po` and are compiled to `dist/po.<language>.js`
+by the normal build; `make install` also includes them in the AppStream metadata.
+There is no need for an `en.po` file.
+
+Translation contributions should be made in Weblate once the Cockpit Cron
+project is available there. The [Weblate buffer repository](https://github.com/yashjawale/cockpit-cron-weblate)
+holds the generated template and receives translated PO files from Weblate.
+The `weblate-sync-pot` action uploads source strings daily; the
+`weblate-sync-po` action opens a reviewable translation PR each Tuesday (both
+can also be run manually). The main repository does not grant Weblate direct
+write access. Translations are validated with `msgfmt` and a build before the
+PR is opened; reviewers should also check translation quality. New languages
+can be added in Weblate as translators become available.
+
+To test a translation locally, copy its PO file into `po/`, run `make`, and
+select the corresponding language in Cockpit. Review the UI, the navigation
+label, and installed AppStream metadata; do not edit the generated JS files.
+
 # Running tests locally
 
 Run `make check` to build an RPM, install it into a standard Cockpit test VM

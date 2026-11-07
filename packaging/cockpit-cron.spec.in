@@ -57,7 +57,8 @@ NODE_ENV=production NODE_PATH=/usr/lib/node_modules:$(echo /usr/lib/node_modules
 
 
 %install
-%make_install PREFIX=/usr
+# The RPM build already rebuilt (Fedora) or ships (other distros) the bundle.
+%make_install PREFIX=/usr PREBUILT_BUNDLE=1
 
 # drop source maps, they are large and just for debugging
 find %{buildroot}%{_datadir}/cockpit/ -name '*.map' | xargs --no-run-if-empty rm --verbose

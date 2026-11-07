@@ -1,0 +1,74 @@
+name: weblate-sync-po
+
+on:
+  schedule:
+    - cron: '0 18 * * 2'
+  workflow_dispatch:
+
+concurrency:
+  group: weblate-sync-po
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh-translations:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          path: src
+
+      - name: Check out Weblate buffer repository
+        uses: actions/checkout@v7
+        with:
+          repository: yashjawale/cockpit-cron-weblate
+          path: weblate
+
+      - name: Copy and validate translations
+        id: translations
+        run: |
+          shopt -s nullglob
+          catalogs=(weblate/*.po)
+          find src/po -maxdepth 1 -name '*.po' -delete
+          sudo apt-get update
+          sudo apt-get install -y gettext
+          if ((${#catalogs[@]})); then
+            cp "${catalogs[@]}" src/po/
+          fi
+          po_files=(src/po/*.po)
+          for file in "${po_files[@]}"; do
+            msgfmt --check --check-format -o /dev/null "$file"
+          done
+          if git -C src status --porcelain --untracked-files=all -- po | grep -qE '^[ MADRCU?!]{2} po/[^/]+\.po'; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Node.js
+        if: steps.translations.outputs.available == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Verify translation build
+        if: steps.translations.outputs.available == 'true'
+        run: |
+          make -C src
+          DESTDIR="$(mktemp -d)" make -C src install
+
+      - name: Open or update translation PR
+        if: steps.translations.outputs.available == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          path: src
+          branch: automation/weblate-po
+          commit-message: 'Update translations from Weblate'
+          title: 'Update translations from Weblate'
+          body: 'Translations from the Weblate buffer repository. Validated with msgfmt and the Cockpit build; please review before merging.'
+          add-paths: po/*.po
+          delete-branch: true
