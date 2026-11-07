@@ -12,6 +12,8 @@ A simple [Cockpit](https://cockpit-project.org/) plugin for making it easier to 
 - Skip executing job until a certain time
 - Supports both system & user cron
 
+> Like what you see? Consider starring the repository 🌟
+
 # Installation
 
 > TODO: After figuring out distribution channel to use. Currently binaries & tar is available from GitHub releases.
@@ -125,25 +127,11 @@ Rules configuration can be found in the `.stylelintrc.json` file.
 
 # Translation
 
-The translations for the plugin are handled via [Weblate](https://weblate.org/).
+> Not yet available.
 
-English strings in `src/` and the AppStream metainfo file are the source of
-translations. To inspect the gettext template, run `make po/cockpit-cron.pot`;
-this requires gettext, Node.js, and the build dependencies listed above. The
-template (`.pot`) is generated, not committed to this repository. Actual
-translations live in `po/<language>.po` and are compiled to `dist/po.<language>.js`
-by the normal build; `make install` also includes them in the AppStream metadata.
+The translations for the plugin will be handled via [Weblate](https://weblate.org/).
 
-Translation contributions should be made in Weblate once the Cockpit Cron
-project is available there. The [Weblate buffer repository](https://github.com/yashjawale/cockpit-cron-weblate)
-holds the generated template and receives translated PO files from Weblate.
-The `weblate-sync-pot` action uploads source strings daily; the
-`weblate-sync-po` action opens a reviewable translation PR each Tuesday. 
-New languages can be added in Weblate directly.
-
-To test a translation locally, copy its PO file into `po/`, run `make`, and
-select the corresponding language in Cockpit. Review the UI, the navigation
-label, and installed AppStream metadata; do not edit the generated JS files.
+We're currently in the process of setting up the hosted service via Weblate's Libre Gratis Plan. Once its active, contributors can directly translate strings on Weblate.
 
 # Running tests locally
 
