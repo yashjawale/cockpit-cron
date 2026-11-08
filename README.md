@@ -198,10 +198,11 @@ changes:
 
 Pushing a version tag (e.g. `123`) triggers the
 [release.yml](.github/workflows/release.yml)
-[GitHub action](https://github.com/features/actions) workflow. This creates the
-official release tarball and publishes as upstream release to GitHub. It can
-also be triggered manually (Actions → release → Run workflow) with the "Dry
-run" input enabled, which builds the artifacts without publishing them.
+[GitHub action](https://github.com/features/actions) workflow. It builds the
+source tarball and Debian and RPM packages first, then creates the GitHub
+release and attaches all artifacts only if every build succeeds. A manual run
+(Actions → release → Run workflow) builds and retains the artifacts for
+inspection, but never publishes a release.
 
 The Fedora and COPR releases are done with [Packit](https://packit.dev/),
 see the [packit.yaml](./packit.yaml) control file.
