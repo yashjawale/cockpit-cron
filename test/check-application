@@ -4,7 +4,7 @@
 # See https://github.com/cockpit-project/cockpit/blob/main/test/common/testlib.py
 # "class Browser" and "class MachineCase" for the available API.
 
-import datetime
+import datetime as dt
 import re
 
 import testlib
@@ -30,7 +30,7 @@ class TestApplication(testlib.MachineCase):
         timestamp. The timestamp is the wall clock the browser (host) assigns,
         and the server converts that instant into its own timezone, so the
         expected fields are computed with the same conversion."""
-        epoch = int(datetime.datetime.strptime(until, "%Y-%m-%dT%H:%M").timestamp())
+        epoch = int(dt.datetime.strptime(until, "%Y-%m-%dT%H:%M").timestamp())
         return self.machine.execute(f"date -d @{epoch} '+%M %H %d %m'").strip()
 
     def future_date(self, days=10):
@@ -38,15 +38,15 @@ class TestApplication(testlib.MachineCase):
         own month and day and therefore accepted by the skip dialog no matter
         when the test runs. Far dates would be rejected, because the resume
         job's cron schedule cannot encode a year."""
-        return (datetime.date.today() + datetime.timedelta(days=days)).isoformat()
+        return (dt.date.today() + dt.timedelta(days=days)).isoformat()
 
     def next_leap_day(self):
         """The next February 29, which is the next occurrence of a leap day and
         therefore a valid skip date."""
-        year = datetime.date.today().year
+        year = dt.date.today().year
         while True:
             try:
-                datetime.date(year, 2, 29)
+                dt.date(year, 2, 29)
                 return f"{year}-02-29"
             except ValueError:
                 year += 1
