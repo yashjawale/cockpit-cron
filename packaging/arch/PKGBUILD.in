@@ -1,15 +1,15 @@
-pkgname=cockpit-cron
+pkgname=cockpit-cron-bin
 pkgver=VERSION
 pkgrel=1
-pkgdesc='Cockit Plugin for managing cron jobs'
-arch=('x86_64')
+pkgdesc='Cockpit plugin for managing cron jobs (prebuilt UI bundle)'
+arch=('any')
 url='https://github.com/yashjawale/cockpit-cron'
-license=(LGPL)
+license=('LGPL-2.1-or-later')
+depends=('cockpit' 'cronie')
 source=("SOURCE")
 sha256sums=('SKIP')
 
 package() {
-  depends=(cockpit)
-  cd $pkgname
-  make DESTDIR="$pkgdir" install PREFIX=/usr
+  cd "${srcdir}/cockpit-cron"
+  make DESTDIR="${pkgdir}" install PREFIX=/usr PREBUILT_BUNDLE=1
 }
