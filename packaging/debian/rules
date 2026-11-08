@@ -3,6 +3,8 @@
 # The Makefile defaults to PREFIX=/usr/local; the Debian package installs
 # into /usr
 export PREFIX=/usr
+# The release tarball ships the built UI; do not invoke build.js during install.
+export PREBUILT_BUNDLE=1
 
 %:
 	dh $@
