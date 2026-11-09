@@ -41,15 +41,26 @@ jobs:
     trigger: pull_request
     targets: *test_targets
 
-  # Build releases in COPR: https://packit.dev/docs/configuration/#copr_build
-  #- job: copr_build
-  #  trigger: release
-  #  owner: your_copr_login
-  #  project: your_copr_project
-  #  preserve_project: True
-  #  targets:
-  #    - fedora-all
-  #    - centos-stream-9-x86_64
+  # Build published releases in the persistent Copr project. Keep these
+  # targets aligned with the project's enabled chroots and the PR COPR job.
+  - job: copr_build
+    trigger: release
+    identifier: published
+    owner: yash
+    project: cockpit-cron
+    targets:
+      - fedora-43
+      - fedora-43-aarch64
+      - fedora-44
+      - fedora-44-aarch64
+      - fedora-45
+      - fedora-45-aarch64
+      - fedora-rawhide
+      - fedora-rawhide-aarch64
+      - centos-stream-9
+      - centos-stream-9-aarch64
+      - centos-stream-10
+      - centos-stream-10-aarch64
 
   # Build releases in Fedora: https://packit.dev/docs/configuration/#propose_downstream
   #- job: propose_downstream
