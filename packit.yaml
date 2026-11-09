@@ -47,7 +47,7 @@ jobs:
     trigger: release
     identifier: published
     owner: yash
-    project: cockpit-cron
+    project: cockpit-plugins
     targets:
       - fedora-43
       - fedora-43-aarch64
