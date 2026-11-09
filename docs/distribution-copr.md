@@ -25,8 +25,11 @@ green release status, implement a separate status check against Copr's API.
 
 1. Register at <https://accounts.fedoraproject.org/> and log in at
    <https://copr.fedorainfracloud.org/>. Decide on the Copr owner username.
-2. Create a project named `cockpit-cron`; enable only a Fedora release/arch
-   that exists in the Copr chroot list and on which this package builds.
+2. Create a project named `cockpit-plugins`; this shared repository can host
+   separate packages for multiple Cockpit plugins. Enable only Fedora/CentOS
+   releases and architectures on which the packages build. If a `cockpit-cron`
+   project already exists, create this new project rather than assuming COPR
+   will redirect or rename it.
    Keep publishing enabled and disable expiration/deletion for this project.
    Make sure this is **not** a disposable CI project.
 3. Enable Packit-as-a-service for `yashjawale/cockpit-cron` using Packit's
@@ -41,7 +44,7 @@ green release status, implement a separate status check against Copr's API.
 ## Agent implementation checklist
 
 - [ ] Uncomment/add a release `copr_build` job in `packit.yaml` with `owner`,
-      `project: cockpit-cron`, `trigger: release`, and a deliberately limited
+      `project: cockpit-plugins`, `trigger: release`, and a deliberately limited
       `targets` list (or omit `targets` to inherit the custom Copr project's
       enabled chroots). Do **not** copy the PR-only targets blindly: some
       targets may not exist or have required dependencies. Set a unique
@@ -75,7 +78,7 @@ Illustrative release job (substitute your real Copr owner and tested targets):
     trigger: release
     identifier: published
     owner: YOUR_COPR_USERNAME
-    project: cockpit-cron
+    project: cockpit-plugins
     targets:
       - fedora-44
 ```
@@ -93,7 +96,7 @@ twice.
 2. Push a new tag and verify the GitHub release exists; inspect the Packit
    dashboard, then all enabled Copr build logs and the published package.
 3. On a fresh Fedora system: `sudo dnf copr enable
-   YOUR_COPR_USERNAME/cockpit-cron`, `sudo dnf install cockpit-cron`, then
+    YOUR_COPR_USERNAME/cockpit-plugins`, `sudo dnf install cockpit-cron`, then
    verify `/usr/share/cockpit/cron` and the Cockpit UI. Check CentOS separately
    if enabled.
 4. On failure, change the spec/config in a new commit and cut a **new version**
