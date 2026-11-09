@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Assemble RPM and Debian OBS build descriptions from a release tarball.
+set -euo pipefail
+
+if [[ $# -ne 2 ]]; then
+    echo "Usage: $0 RELEASE_TARBALL OUTPUT_DIR" >&2
+    exit 2
+fi
+
+release=$(realpath "$1")
+out=$(realpath -m "$2")
+base=$(basename "$release")
+[[ -f $release ]] || { echo "No such release tarball: $release" >&2; exit 1; }
+[[ $base =~ ^cockpit-cron-([0-9][A-Za-z0-9.+~]*[0-9A-Za-z])\.tar\.xz$ ]] || {
+    echo "Expected cockpit-cron-VERSION.tar.xz, got: $base" >&2
+    exit 1
+}
+version=${BASH_REMATCH[1]}
+node_cache="$(dirname "$release")/cockpit-cron-node-${version}.tar.xz"
+[[ -f $node_cache ]] || { echo "Missing matching node cache: $node_cache" >&2; exit 1; }
+command -v dpkg-source >/dev/null || { echo "Install dpkg-dev (dpkg-source is required)" >&2; exit 1; }
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+tar -xf "$release" -C "$tmp"
+root="$tmp/cockpit-cron"
+[[ -f $root/cockpit-cron.spec && \
+   -f $root/debian/control && -f $root/debian/source/format ]] || {
+    echo "Release tarball is missing generated RPM or Debian packaging" >&2
+    exit 1
+}
+
+mkdir -p "$out"
+cp "$root/cockpit-cron.spec" "$out/"
+cp "$release" "$node_cache" "$out/"
+
+# Debian source format 3.0 (quilt) expects an upstream orig tarball without
+# debian/. OBS can then select the .dsc for Debian/Ubuntu targets while using
+# the spec for RPM targets from the same package.
+orig_root="cockpit-cron-${version}"
+mkdir -p "$tmp/orig/$orig_root" "$tmp/debian-src"
+tar -C "$root" --exclude=./debian -cf - . | tar -C "$tmp/orig/$orig_root" -xf -
+tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
+    -C "$tmp/orig" -cJf "$tmp/debian-src/cockpit-cron_${version}.orig.tar.xz" "$orig_root"
+deb_version="${version}-1"
+cp -a "$root" "$tmp/debian-src/$orig_root"
+sed -i "1s/^cockpit-cron ([^)]*) /cockpit-cron (${deb_version}) /" \
+    "$tmp/debian-src/$orig_root/debian/changelog"
+(
+    cd "$tmp/debian-src"
+    dpkg-source -b "$orig_root"
+)
+cp "$tmp/debian-src/cockpit-cron_${deb_version}.dsc" "$out/"
+cp "$tmp/debian-src"/cockpit-cron_"${deb_version}".debian.tar.* "$out/"
+cp "$tmp/debian-src/cockpit-cron_${version}.orig.tar.xz" "$out/"
+
+echo "Prepared OBS sources for ${version} in $out"
+echo "Includes RPM spec, Debian source package, and both release archives."
