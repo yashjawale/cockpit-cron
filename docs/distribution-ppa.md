@@ -16,8 +16,9 @@ rebuilding from current `main`. Build a Debian **source** package per Ubuntu
 series, sign `.dsc` and `_source.changes` with a dedicated OpenPGP upload key,
 and upload each `_source.changes` with `dput`. Launchpad builds and publishes
 asynchronously. Do not attach these signing credentials to pull-request jobs.
-Select and document the actual supported codenames at implementation time;
-`noble` below is an *example*, not a guarantee of support forever.
+The initial target series are `jammy` (22.04), `noble` (24.04), `resolute`
+(26.04), and `stonking` (26.10). Confirm each is available as a Launchpad PPA
+build target before enabling uploads. Review this list as Ubuntu support changes.
 
 ## Manual owner setup (one time)
 
@@ -28,18 +29,27 @@ Select and document the actual supported codenames at implementation time;
    email. Make the Debian changelog maintainer email correspond to the key and
    Launchpad account. Back up the private key offline and record its complete
    fingerprint. Avoid putting your everyday personal signing key in CI.
-3. Store the private key as a GitHub Actions secret, e.g.
-   `PPA_SIGNING_KEY_ASC`, the fingerprint as `PPA_SIGNING_FINGERPRINT`, and
-   any passphrase as `PPA_SIGNING_PASSPHRASE`. Prefer an unencrypted key
-   **dedicated to this PPA** if headless signing cannot securely unlock an
-   encrypted one; decide and document the tradeoff, restrict repository
-   Actions access, and be able to revoke/rotate the key. Never put a key in
+3. Store the armored private key as the GitHub Actions secret
+   `PPA_SIGNING_KEY_ASC`, its fingerprint as `PPA_SIGNING_FINGERPRINT`, and
+   its passphrase as `PPA_SIGNING_PASSPHRASE`. Use a passphrase-protected key
+   **dedicated to this PPA**. Restrict repository Actions access, and be able
+   to revoke/rotate the key. Never put a key in
    Git, logs, build artifacts or untrusted PR jobs.
 4. Optionally use a protected GitHub `ppa-publish` environment with tag/release
    restrictions. **Required human approval** of that environment would break
    the requested hands-off tag-to-publication behavior; choose restrictions
    accordingly. Confirm the PPA supports the selected Ubuntu series and the
    archive provides `debhelper-compat (= 13)`, `gettext`, and `cockpit-bridge`.
+
+## Implementation status
+
+- [x] Add `packaging/debian/prepare-ppa-source` to derive the quilt-compatible
+      orig tarball and per-series source tree from the exact release artifact.
+- [x] Add a tag-only matrix upload job in the release workflow for the four
+      selected Ubuntu series. It uploads to `ppa:yashjawale/cockpit-plugins`;
+      PPA publishing is independent from the GitHub release publishing gate.
+- [ ] Verify PPA series/build dependency availability and exercise a signed
+      source upload after owner setup.
 
 ## Agent implementation checklist
 
