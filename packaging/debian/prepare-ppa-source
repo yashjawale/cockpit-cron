@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Prepare a Launchpad-ready Debian source tree and orig tarball from make dist.
+set -euo pipefail
+
+if [[ $# -ne 3 ]]; then
+    echo "Usage: $0 RELEASE_TARBALL UBUNTU_CODENAME OUTPUT_DIR" >&2
+    exit 2
+fi
+
+tarball=$(realpath "$1")
+codename=$2
+out=$(realpath -m "$3")
+
+[[ -f $tarball ]] || { echo "No such release tarball: $tarball" >&2; exit 1; }
+[[ $codename =~ ^[a-z][a-z0-9]+$ ]] || { echo "Invalid Ubuntu codename: $codename" >&2; exit 1; }
+
+base=$(basename "$tarball")
+[[ $base =~ ^cockpit-cron-([0-9]+\.[0-9]+\.[0-9]+)\.tar\.xz$ ]] || {
+    echo "Expected a versioned cockpit-cron release tarball, got: $base" >&2
+    exit 1
+}
+upstream=${BASH_REMATCH[1]}
+version="${upstream}-0ubuntu1~${codename}1"
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+mkdir -p "$out"
+tar -xf "$tarball" -C "$tmp"
+root="$tmp/cockpit-cron"
+[[ -d $root/debian && -d $root/dist ]] || {
+    echo "Release tarball must contain generated debian/ and prebuilt dist/" >&2
+    exit 1
+}
+
+# Debian 3.0 (quilt) requires the upstream orig tar to exclude debian/.
+orig_root="cockpit-cron-${upstream}"
+mkdir -p "$tmp/orig/${orig_root}"
+tar -C "$root" --exclude=./debian -cf - . | tar -C "$tmp/orig/${orig_root}" -xf -
+tar --sort=name --mtime="@0" --owner=0 --group=0 --numeric-owner \
+    -C "$tmp/orig" -cJf "$out/cockpit-cron_${upstream}.orig.tar.xz" "$orig_root"
+
+cp -a "$root" "$out/cockpit-cron-${version}"
+sed -i "1s/^cockpit-cron ([^)]*) [^;]*;/cockpit-cron (${version}) ${codename};/" \
+    "$out/cockpit-cron-${version}/debian/changelog"
+
+echo "Prepared $out/cockpit-cron-${version} and orig tarball for ${codename}"
