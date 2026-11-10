@@ -48,8 +48,11 @@ the *previous* version, not publish the new one.
 4. Run **Actions → release → Run workflow** to exercise the dry-run path. It
    assembles the OBS source files and uploads them as `obs-sources-dry-run`,
    without requiring OBS credentials or modifying OBS. Inspect that artifact
-   before creating/pushing a real release tag. OBS publishing supports numeric
-   Cockpit-style tags such as `27` and dotted versions such as `0.1.0`.
+    before creating/pushing a real annotated release tag. The source job
+    rejects lightweight or non-numeric tags and checks the archive version
+    against the tag before any publisher runs. OBS publishing
+    supports Cockpit-style numeric tags such as `1`, `2`, `3`, and dotted
+    versions such as `1.2.3`.
 
 ## Implementation status and remaining verification
 

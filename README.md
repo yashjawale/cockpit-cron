@@ -204,7 +204,8 @@ changes:
 - fix bug #123
 ```
 
-Pushing a version tag (e.g. `123`) triggers the
+Pushing an annotated numeric version tag (for example `1`, `2`, `3`, or
+`1.2.3`) triggers the
 [release.yml](.github/workflows/release.yml)
 [GitHub action](https://github.com/features/actions) workflow. It builds the
 source tarball and Debian and RPM packages first, then creates the GitHub
