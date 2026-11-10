@@ -202,7 +202,11 @@ Pushing a version tag (e.g. `123`) triggers the
 source tarball and Debian and RPM packages first, then creates the GitHub
 release and attaches all artifacts only if every build succeeds. A manual run
 (Actions → release → Run workflow) builds and retains the artifacts for
-inspection, but never publishes a release.
+inspection, but never publishes a release. Pushing a version tag also uploads
+the RPM and Debian source descriptions to the OBS project; OBS builds and
+publishes those asynchronously. A manual run only assembles an OBS dry-run
+artifact. See [OBS release setup](docs/distribution-obs.md) for the required
+GitHub secrets and repository instructions.
 
 The Fedora and COPR releases are done with [Packit](https://packit.dev/),
 see the [packit.yaml](./packit.yaml) control file.

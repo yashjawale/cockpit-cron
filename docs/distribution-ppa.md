@@ -90,8 +90,8 @@ build target before enabling uploads. Review this list as Ubuntu support changes
       upstream version, use `-sa` so the orig tar is included. Handle each
       series independently and record upload/acceptance/build status. An FTP
       upload is **not** proof of Launchpad acceptance or build success.
-- [ ] Add validation of codename, tag (`^[0-9]+\.[0-9]+\.[0-9]+$` if adopting
-      semantic release versions), version ordering, correct source tarball,
+- [ ] Add validation of codename, numeric release tag (for example `27` or
+      `1.2.3`), version ordering, correct source tarball,
       and matching changelog. Test the script on a local sample tarball in CI
       without secrets; optionally check Launchpad API for accepted/published
       state and fail a monitoring job on rejection. Do not publish the private
