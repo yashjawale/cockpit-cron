@@ -360,7 +360,8 @@ jobs:
           # the passphrase is sent over stdin, not exposed as a process argument.
           printf '%s' "$PPA_SIGNING_PASSPHRASE" | \
             gpg --batch --pinentry-mode loopback --passphrase-fd 0 \
-              --local-user "$PPA_SIGNING_FINGERPRINT" --detach-sign /dev/null
+              --local-user "$PPA_SIGNING_FINGERPRINT" --detach-sign \
+              --output "$GNUPGHOME/unlock.sig" /dev/null
           work="${RUNNER_TEMP}/ppa-${{ matrix.ubuntu-series }}"
           mkdir -p "$work"
           mapfile -t source_tarballs < <(find . -maxdepth 1 -type f \
