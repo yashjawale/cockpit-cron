@@ -46,7 +46,7 @@ fi
 
 message_file=$(mktemp)
 trap 'rm -f "$message_file"' EXIT
-printf '%s\n\n# Add release notes below this line; these become the GitHub release notes.\n' \
+printf '%s\n\n# Add a short tag annotation below this line; OBS uses it in its changelog.\n' \
     "$version" > "$message_file"
 git tag --annotate --edit --cleanup=strip --file="$message_file" "$version" "$head"
 
@@ -57,7 +57,8 @@ if [[ -z ${notes//[[:space:]]/} ]]; then
     exit 1
 fi
 
-printf '\nTag %s is ready with these release notes:\n\n%s\n\n' "$version" "$notes"
+printf '\nTag %s is ready with this annotation (used in the OBS changelog):\n\n%s\n\n' \
+    "$version" "$notes"
 read -r -p "Push this tag and start the release workflow? [y/N] " answer
 case $answer in
     [yY]|[yY][eE][sS]) git push origin "refs/tags/$version" ;;

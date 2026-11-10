@@ -416,22 +416,15 @@ jobs:
           name: arch-package
           path: release-assets
 
-      - name: Checkout tag for annotated release notes
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.ref }}
-          fetch-depth: 0
-
       - name: Create release and upload artifacts
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME}"
-          git tag -l --format='%(contents:body)' "${tag}" > release-notes.txt
           gh release create "${tag}" release-assets/* \
             --title "${tag}" \
-            --notes-file release-notes.txt \
+            --generate-notes \
             --repo "${GITHUB_REPOSITORY}"
 
   # Manual dry runs intentionally stop after building and uploading workflow
