@@ -28,9 +28,33 @@ jobs:
       - name: Pacify git's permission check
         run: git config --global --add safe.directory /__w/cockpit-cron/cockpit-cron
 
+      - name: Validate release tag
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_REF_NAME}" =~ ^[0-9]+(\.[0-9]+)*$ ]] || {
+            echo "Release tags must be numeric (for example 1, 2, 3, or 1.2.3)" >&2
+            exit 1
+          }
+          tag_ref="refs/tags/${GITHUB_REF_NAME}"
+          [[ "$(git cat-file -t "$tag_ref")" == tag ]] || {
+            echo "Release tag ${GITHUB_REF_NAME} must be annotated; lightweight tags are unsupported" >&2
+            exit 1
+          }
+          [[ "$(git describe --exact-match --tags HEAD)" == "${GITHUB_REF_NAME}" ]] || {
+            echo "HEAD is not exactly tagged with ${GITHUB_REF_NAME}" >&2
+            exit 1
+          }
+
       - name: Build release
         run: |
           make dist
+          if [[ "${GITHUB_EVENT_NAME}" == push ]]; then
+            test -f "cockpit-cron-${GITHUB_REF_NAME}.tar.xz" || {
+              echo "Release archive version does not match tag ${GITHUB_REF_NAME}" >&2
+              exit 1
+            }
+          fi
 
       - name: Upload source artifacts
         uses: actions/upload-artifact@v7
@@ -185,14 +209,14 @@ jobs:
           }
           release="${releases[0]}"
           filename=$(basename "$release")
-          [[ "$filename" =~ ^cockpit-cron-([0-9][A-Za-z0-9.+~]*[0-9A-Za-z])\.tar\.xz$ ]] || {
+          [[ "$filename" =~ ^cockpit-cron-([0-9]([A-Za-z0-9.+~]*[0-9A-Za-z])?)\.tar\.xz$ ]] || {
             echo "Unexpected release source filename: $filename" >&2
             exit 1
           }
           version="${BASH_REMATCH[1]}"
           if [[ "${GITHUB_EVENT_NAME}" == push ]]; then
             [[ "${GITHUB_REF_NAME}" =~ ^[0-9]+(\.[0-9]+)*$ ]] || {
-              echo "OBS publishing requires a numeric release tag (for example 27 or 1.2.3)" >&2
+              echo "OBS publishing requires a numeric release tag (for example 1, 2, 3, or 1.2.3)" >&2
               exit 1
             }
             [[ "${GITHUB_REF_NAME}" == "$version" ]] || {
@@ -322,7 +346,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "${GITHUB_REF_NAME}" =~ ^[0-9]+(\.[0-9]+)*$ ]] || {
-            echo "PPA publishing requires a numeric release tag (for example 27 or 1.2.3)" >&2
+            echo "PPA publishing requires a numeric release tag (for example 1, 2, 3, or 1.2.3)" >&2
             exit 1
           }
           : "${PPA_SIGNING_KEY_ASC:?Set PPA_SIGNING_KEY_ASC in repository Actions secrets}"
@@ -343,6 +367,12 @@ jobs:
             -name 'cockpit-cron-[0-9]*.tar.xz' -print)
           [[ ${#source_tarballs[@]} -eq 1 ]] || {
             echo "Expected exactly one versioned release tarball; found ${#source_tarballs[@]}" >&2
+            exit 1
+          }
+          filename=$(basename "${source_tarballs[0]}")
+          [[ "$filename" =~ ^cockpit-cron-([0-9]([A-Za-z0-9.+~]*[0-9A-Za-z])?)\.tar\.xz$ && \
+             "${BASH_REMATCH[1]}" == "${GITHUB_REF_NAME}" ]] || {
+            echo "Release archive ${filename} does not match tag ${GITHUB_REF_NAME}" >&2
             exit 1
           }
           packaging/debian/prepare-ppa-source "${source_tarballs[0]}" \
@@ -386,22 +416,15 @@ jobs:
           name: arch-package
           path: release-assets
 
-      - name: Checkout tag for annotated release notes
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.ref }}
-          fetch-depth: 0
-
       - name: Create release and upload artifacts
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME}"
-          git tag -l --format='%(contents:body)' "${tag}" > release-notes.txt
           gh release create "${tag}" release-assets/* \
             --title "${tag}" \
-            --notes-file release-notes.txt \
+            --generate-notes \
             --repo "${GITHUB_REPOSITORY}"
 
   # Manual dry runs intentionally stop after building and uploading workflow

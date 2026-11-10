@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Create and push an annotated numeric release tag from the current main HEAD.
+set -euo pipefail
+
+usage() {
+    echo "Usage: $0 VERSION" >&2
+    echo "Example: $0 1" >&2
+    exit 2
+}
+
+[[ $# -eq 1 ]] || usage
+version=$1
+[[ $version =~ ^[0-9]+(\.[0-9]+)*$ ]] || {
+    echo "Version must be numeric (for example 1, 2, 3, or 1.2.3): $version" >&2
+    exit 2
+}
+
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+[[ $(git branch --show-current) == main ]] || {
+    echo "Switch to main before creating a release tag" >&2
+    exit 1
+}
+[[ -z $(git status --porcelain) ]] || {
+    echo "Working tree must be clean before creating a release tag" >&2
+    exit 1
+}
+
+git fetch origin main --tags
+head=$(git rev-parse HEAD)
+origin_main=$(git rev-parse refs/remotes/origin/main)
+[[ $head == "$origin_main" ]] || {
+    echo "Local main must match origin/main; update it before releasing" >&2
+    exit 1
+}
+
+if git tag --points-at "$head" | grep -q .; then
+    echo "HEAD already has a tag; release from a new untagged main commit" >&2
+    exit 1
+fi
+if git show-ref --verify --quiet "refs/tags/$version" || \
+   git ls-remote --exit-code --tags origin "refs/tags/$version" >/dev/null 2>&1; then
+    echo "Tag $version already exists locally or on origin" >&2
+    exit 1
+fi
+
+message_file=$(mktemp)
+trap 'rm -f "$message_file"' EXIT
+printf '%s\n\n# Add a short tag annotation below this line; OBS uses it in its changelog.\n' \
+    "$version" > "$message_file"
+git tag --annotate --edit --cleanup=strip --file="$message_file" "$version" "$head"
+
+notes=$(git for-each-ref --format='%(contents:body)' "refs/tags/$version")
+if [[ -z ${notes//[[:space:]]/} ]]; then
+    git tag --delete "$version"
+    echo "Release notes are required; no tag was kept" >&2
+    exit 1
+fi
+
+printf '\nTag %s is ready with this annotation (used in the OBS changelog):\n\n%s\n\n' \
+    "$version" "$notes"
+read -r -p "Push this tag and start the release workflow? [y/N] " answer
+case $answer in
+    [yY]|[yY][eE][sS]) git push origin "refs/tags/$version" ;;
+    *) echo "Not pushed. The annotated tag remains local; push with: git push origin $version" ;;
+esac

@@ -10,8 +10,10 @@ builds and publishes their `.deb` files asynchronously. The GitHub release
 
 ## Chosen architecture
 
-The tag-only PPA job downloads the source artifact from the same workflow run,
-builds a Debian **source** package per Ubuntu series, signs `.dsc` and
+The tag-only PPA job downloads the source artifact from the same workflow run.
+It supports annotated numeric tags such as `1`, `2`, and `3`, as well as dotted
+numeric versions such as `1.2.3`. It builds a Debian **source** package per
+Ubuntu series, signs `.dsc` and
 `_source.changes` with the configured OpenPGP key, and uploads each
 `_source.changes` with `dput`. Credentials are not exposed to pull-request or
 manual workflow runs. PPA publication is independent of the GitHub release

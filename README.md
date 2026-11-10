@@ -204,7 +204,8 @@ changes:
 - fix bug #123
 ```
 
-Pushing a version tag (e.g. `123`) triggers the
+Pushing an annotated numeric version tag (for example `1`, `2`, `3`, or
+`1.2.3`) triggers the
 [release.yml](.github/workflows/release.yml)
 [GitHub action](https://github.com/features/actions) workflow. It builds the
 source tarball and Debian and RPM packages first, then creates the GitHub
@@ -215,6 +216,12 @@ the RPM and Debian source descriptions to the OBS project; OBS builds and
 publishes those asynchronously. A manual run only assembles an OBS dry-run
 artifact. See [OBS release setup](docs/distribution-obs.md) for the required
 GitHub secrets and repository instructions.
+
+After merging changes to `main`, `scripts/release-tag 1` guides you through
+writing the annotated tag message and asks before pushing. Use the next unused
+version number for each release. The tag message is used for the OBS changelog;
+GitHub generates the GitHub release notes from the repository's release history
+and merged pull requests.
 
 The Fedora and COPR releases are done with [Packit](https://packit.dev/),
 see the [packit.yaml](./packit.yaml) control file.

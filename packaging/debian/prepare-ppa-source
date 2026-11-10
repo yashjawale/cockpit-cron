@@ -15,7 +15,7 @@ out=$(realpath -m "$3")
 [[ $codename =~ ^[a-z][a-z0-9]+$ ]] || { echo "Invalid Ubuntu codename: $codename" >&2; exit 1; }
 
 base=$(basename "$tarball")
-[[ $base =~ ^cockpit-cron-([0-9][A-Za-z0-9.+~]*[0-9A-Za-z])\.tar\.xz$ ]] || {
+[[ $base =~ ^cockpit-cron-([0-9]([A-Za-z0-9.+~]*[0-9A-Za-z])?)\.tar\.xz$ ]] || {
     echo "Expected a versioned cockpit-cron release tarball, got: $base" >&2
     exit 1
 }
