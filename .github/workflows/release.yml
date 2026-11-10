@@ -31,7 +31,6 @@ jobs:
       - name: Build release
         run: |
           make dist
-          make node-cache
 
       - name: Upload source artifacts
         uses: actions/upload-artifact@v7
@@ -72,8 +71,7 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # Build an RPM from the release tarball. On CentOS Stream the pre-built
-  # dist/ bundle is used; the node-cache archive is still the spec's Source1.
+  # Build an RPM from the release tarball using its pre-built dist/ bundle.
   rpm:
     runs-on: ubuntu-latest
     needs: source
@@ -205,7 +203,6 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/obs-sources"
           packaging/obs/prepare-sources "$release" "${RUNNER_TEMP}/obs-sources"
           grep -Fxq "Version: ${version}" "${RUNNER_TEMP}/obs-sources/cockpit-cron.spec"
-          test -f "${RUNNER_TEMP}/obs-sources/cockpit-cron-node-${version}.tar.xz"
           test -f "${RUNNER_TEMP}/obs-sources/cockpit-cron_${version}-1.dsc"
           test -f "${RUNNER_TEMP}/obs-sources/cockpit-cron_${version}-1.debian.tar.xz"
           test -f "${RUNNER_TEMP}/obs-sources/cockpit-cron_${version}.orig.tar.xz"
@@ -272,7 +269,8 @@ jobs:
           done
 
           cp -f "${RUNNER_TEMP}/obs-sources/"* .
-          git tag -l --format='%(contents:body)' "${GITHUB_REF_NAME}" > "$RUNNER_TEMP/release-notes.txt"
+          git -C "$GITHUB_WORKSPACE" tag -l --format='%(contents:body)' \
+            "${GITHUB_REF_NAME}" > "$RUNNER_TEMP/release-notes.txt"
           python3 "$GITHUB_WORKSPACE/packaging/obs/update-changes.py" \
             --file cockpit-cron.changes \
             --tag "${GITHUB_REF_NAME}" \
@@ -341,7 +339,13 @@ jobs:
               --local-user "$PPA_SIGNING_FINGERPRINT" --detach-sign /dev/null
           work="${RUNNER_TEMP}/ppa-${{ matrix.ubuntu-series }}"
           mkdir -p "$work"
-          packaging/debian/prepare-ppa-source "$(find . -maxdepth 1 -name 'cockpit-cron-*.tar.xz' -print -quit)" \
+          mapfile -t source_tarballs < <(find . -maxdepth 1 -type f \
+            -name 'cockpit-cron-[0-9]*.tar.xz' -print)
+          [[ ${#source_tarballs[@]} -eq 1 ]] || {
+            echo "Expected exactly one versioned release tarball; found ${#source_tarballs[@]}" >&2
+            exit 1
+          }
+          packaging/debian/prepare-ppa-source "${source_tarballs[0]}" \
             "${{ matrix.ubuntu-series }}" "$work"
           cd "$work"/cockpit-cron-*
           dpkg-buildpackage -S -sa -k"${PPA_SIGNING_FINGERPRINT}"

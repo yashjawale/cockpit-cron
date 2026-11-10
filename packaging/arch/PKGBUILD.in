@@ -4,8 +4,11 @@ pkgrel=1
 pkgdesc='Cockpit plugin for managing cron jobs (prebuilt UI bundle)'
 arch=('any')
 url='https://github.com/yashjawale/cockpit-cron'
-license=('LGPL-2.1-or-later')
+license=('LGPL-2.1-or-later' 'MIT' '0BSD')
+makedepends=('gettext')
 depends=('cockpit' 'cronie')
+provides=('cockpit-cron')
+conflicts=('cockpit-cron')
 source=("SOURCE")
 sha256sums=('SKIP')
 

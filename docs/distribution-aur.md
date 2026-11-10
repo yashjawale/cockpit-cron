@@ -28,7 +28,10 @@ pushes AUR Git repository -> AUR publishes recipe -> users run `makepkg`.
 
 1. Search <https://archlinux.org/packages/> and <https://aur.archlinux.org/>
    to ensure the proposed package does not already exist; coordinate with an
-   existing maintainer if it does. Create an AUR account.
+   existing maintainer if it does. **AUR account creation is currently blocked**
+   for the maintainer. AUR publication is deferred; do not add an AUR push job
+   or treat the account/setup checklist as complete until account creation is
+   available and a working account is confirmed.
 2. Create a dedicated SSH key (`ssh-keygen -f ~/.ssh/aur`), register its **public**
    half in AUR's *My Account*, and confirm you can authenticate to
    `ssh://aur@aur.archlinux.org/cockpit-cron-bin.git`. Never put the private key
@@ -54,44 +57,23 @@ pushes AUR Git repository -> AUR publishes recipe -> users run `makepkg`.
    the automation identity has Git name/email set and that its access can be
    revoked without revoking your personal SSH key.
 
-## Agent implementation checklist
+## Deferred AUR work
 
-- [ ] Fix `packaging/arch/PKGBUILD.in` or add a separate versioned template.
-      `Makefile` currently generates a **local**, development-version
-      `packaging/arch/PKGBUILD` with `source=("cockpit-cron-...tar.xz")`,
-      `sha256sums=('SKIP')`, `pkgname=cockpit-cron`, and `depends` inside
-      `package()`. These must **not** be pushed to AUR as-is. Use a public
-      version-pinned release URL, real SHA-256, `pkgname=cockpit-cron-bin`,
-      `provides=('cockpit-cron')`, `conflicts=('cockpit-cron')`, `arch=('any')`
-      if contents are architecture independent, and an explicit
-      `PREBUILT_BUNDLE=1` install. Validate no native binary slips into `dist/`
-      before deciding `arch=('any')`.
-- [ ] Add a job running on an Arch environment with a working `makepkg`
-      (for example a maintained Arch runner/container) to the release workflow,
-      with `needs: source` and, for publishing, the GitHub release creation
-      step having completed. Download the **same-run** source tarball artifact
-      to compute `sha256sum`; the PKGBUILD URL must point to the GitHub
-      *release asset*, not the short-lived Actions artifact. Since `source`
-      creates the release, the URL should exist before publishing AUR.
-- [ ] On a dry run, generate the recipe and `.SRCINFO` without secrets, build
-      it against the local same-run tarball (or a staging release URL), run
-      `namcap`, inspect installed paths and verify exact version. Dry runs do
-      **not** publish a GitHub release; do not run `makepkg` against its
-      nonexistent release URL. Test the release-URL download separately on a
-      real published tag.
-- [ ] For real tags only, use `makepkg --printsrcinfo > .SRCINFO` after
-      generating the final `PKGBUILD` (reject `workflow_dispatch` even if
-      dry-run is false). Clone the AUR repository over SSH on
-      its `master` branch; update only the intended packaging files, check
-      `git diff`, skip an identical no-op rerun, then commit/push. Pull/rebase
-      or safely fail on an AUR maintainer's concurrent edits; never force push
-      or overwrite user/maintainer changes blindly. Include an SSH host-key
-      check, keep the key out of job logs, and dispose of it after use.
-- [ ] Set `pkgver` to the released version and reset `pkgrel=1` for a new
-      version; for a packaging-only fix with the same upstream tarball, bump
-      `pkgrel` instead. Review changes to source licenses/dependencies at
-      every release. AUR Git and source archives must remain separate from
-      this GitHub repository's generated `PKGBUILD` and from built packages.
+The current `packaging/arch/PKGBUILD.in` builds the Arch package attached to
+GitHub releases. It uses a local source archive and the release workflow fills
+in its checksum; **that generated recipe is not ready to submit to AUR**. When
+account creation is available, create an AUR-specific recipe using the
+version-pinned GitHub release URL and real SHA-256, generate `.SRCINFO`, and
+test with `makepkg`/`namcap` before publishing. Keep the AUR recipe separate
+from the GitHub artifact-build recipe. The shared template now declares
+`gettext` as a build dependency and `cockpit-cron` as a provided/conflicting
+package name; retain these in the AUR recipe.
+
+After an account is confirmed, resume the owner setup above: verify package
+name availability, register a dedicated SSH key, pin the AUR host key, test
+the initial recipe manually, then add tag-only CI publishing. Do not create the
+CI secret or publisher job before account access and a manual AUR push have
+been verified.
 
 The [AUR submission guide](https://wiki.archlinux.org/title/AUR_submission_guidelines)
 documents the SSH Git remote, required `.SRCINFO`, allowed branches and

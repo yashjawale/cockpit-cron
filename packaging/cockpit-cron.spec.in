@@ -1,11 +1,11 @@
 Name: cockpit-cron
 Version: %{VERSION}
 Release: 1%{?dist}
-Summary: Cockit Plugin for managing cron jobs
-License: LGPL-2.1-or-later
+Summary: Cockpit plugin for managing cron jobs
+URL: https://github.com/yashjawale/cockpit-cron
+License: LGPL-2.1-or-later AND MIT AND 0BSD
 
 Source0: https://github.com/yashjawale/cockpit-cron/releases/download/%{version}/%{name}-%{version}.tar.xz
-Source1: https://github.com/yashjawale/cockpit-cron/releases/download/%{version}/%{name}-node-%{version}.tar.xz
 
 BuildArch: noarch
 BuildRequires: make
@@ -21,11 +21,13 @@ BuildRequires: libappstream-glib-devel
 %endif
 
 Requires: cockpit-bridge
+# Require a package providing the crontab executable used by the module.
+Requires: /usr/bin/crontab
 
 %{NPM_PROVIDES}
 
 %description
-Cockit Plugin for managing cron jobs
+Cockpit plugin for managing cron jobs
 
 %prep
 %autosetup -n %{name}
@@ -54,3 +56,5 @@ appstream-util validate-relax --nonet %{buildroot}/%{_datadir}/metainfo/*
 %{_datadir}/metainfo/*
 
 %changelog
+* %{RPM_CHANGELOG_DATE} Yash Jawale <yash25.j@gmail.com> - %{VERSION}-1
+- Release %{VERSION}.
