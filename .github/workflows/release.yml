@@ -216,7 +216,7 @@ jobs:
           version="${BASH_REMATCH[1]}"
           if [[ "${GITHUB_EVENT_NAME}" == push ]]; then
             [[ "${GITHUB_REF_NAME}" =~ ^[0-9]+(\.[0-9]+)*$ ]] || {
-              echo "OBS publishing requires a numeric release tag (for example 27 or 1.2.3)" >&2
+              echo "OBS publishing requires a numeric release tag (for example 1, 2, 3, or 1.2.3)" >&2
               exit 1
             }
             [[ "${GITHUB_REF_NAME}" == "$version" ]] || {
@@ -346,7 +346,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "${GITHUB_REF_NAME}" =~ ^[0-9]+(\.[0-9]+)*$ ]] || {
-            echo "PPA publishing requires a numeric release tag (for example 27 or 1.2.3)" >&2
+            echo "PPA publishing requires a numeric release tag (for example 1, 2, 3, or 1.2.3)" >&2
             exit 1
           }
           : "${PPA_SIGNING_KEY_ASC:?Set PPA_SIGNING_KEY_ASC in repository Actions secrets}"
