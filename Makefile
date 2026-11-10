@@ -5,6 +5,7 @@ WEB_DIR := cron
 RPM_NAME := $(if $(filter cockpit-%,$(PACKAGE_NAME)),$(PACKAGE_NAME),cockpit-$(PACKAGE_NAME))
 VERSION := $(shell T=$$(git describe 2>/dev/null) || T=1; echo $$T | tr '-' '.')
 CHANGELOG_DATE := $(shell git show --no-patch --format='%cD' 2>/dev/null || date -R)
+RPM_CHANGELOG_DATE := $(shell git show --no-patch --format='%ad' --date=format:'%a %b %e %Y' 2>/dev/null || date '+%a %b %e %Y')
 ifeq ($(TEST_OS),)
 TEST_OS = centos-9-stream
 endif
@@ -99,7 +100,7 @@ po/LINGUAS: po $(wildcard po/*.po)
 
 $(SPEC): packaging/$(SPEC).in $(DIST_TEST)
 	provides=$$(awk '{print "Provides: bundled(npm(" $$1 ")) = " $$2}' runtime-npm-modules.txt); \
-	awk -v p="$$provides" '{gsub(/%{VERSION}/, "$(VERSION)"); gsub(/%{NPM_PROVIDES}/, p)}1' $< > $@
+	awk -v p="$$provides" '{gsub(/%{VERSION}/, "$(VERSION)"); gsub(/%{RPM_CHANGELOG_DATE}/, "$(RPM_CHANGELOG_DATE)"); gsub(/%{NPM_PROVIDES}/, p)}1' $< > $@
 
 packaging/arch/PKGBUILD: packaging/arch/PKGBUILD.in
 	sed 's/VERSION/$(VERSION)/; s/SOURCE/$(TARFILE)/' $< > $@

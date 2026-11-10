@@ -56,3 +56,5 @@ appstream-util validate-relax --nonet %{buildroot}/%{_datadir}/metainfo/*
 %{_datadir}/metainfo/*
 
 %changelog
+* %{RPM_CHANGELOG_DATE} Yash Jawale <yash25.j@gmail.com> - %{VERSION}-1
+- Release %{VERSION}.
