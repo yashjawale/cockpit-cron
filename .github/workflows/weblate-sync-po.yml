@@ -63,7 +63,7 @@ jobs:
 
       - name: Open or update translation PR
         if: steps.translations.outputs.available == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           path: src
           branch: automation/weblate-po
