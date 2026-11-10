@@ -16,8 +16,6 @@ base=$(basename "$release")
     exit 1
 }
 version=${BASH_REMATCH[1]}
-node_cache="$(dirname "$release")/cockpit-cron-node-${version}.tar.xz"
-[[ -f $node_cache ]] || { echo "Missing matching node cache: $node_cache" >&2; exit 1; }
 command -v dpkg-source >/dev/null || { echo "Install dpkg-dev (dpkg-source is required)" >&2; exit 1; }
 
 tmp=$(mktemp -d)
@@ -32,7 +30,7 @@ root="$tmp/cockpit-cron"
 
 mkdir -p "$out"
 cp "$root/cockpit-cron.spec" "$out/"
-cp "$release" "$node_cache" "$out/"
+cp "$release" "$out/"
 
 # Debian source format 3.0 (quilt) expects an upstream orig tarball without
 # debian/. OBS can then select the .dsc for Debian/Ubuntu targets while using
@@ -55,4 +53,4 @@ cp "$tmp/debian-src"/cockpit-cron_"${deb_version}".debian.tar.* "$out/"
 cp "$tmp/debian-src/cockpit-cron_${version}.orig.tar.xz" "$out/"
 
 echo "Prepared OBS sources for ${version} in $out"
-echo "Includes RPM spec, Debian source package, and both release archives."
+echo "Includes RPM spec, Debian source package, and the upstream release archive."

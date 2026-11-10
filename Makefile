@@ -14,7 +14,7 @@ NODE_CACHE=$(RPM_NAME)-node-$(VERSION).tar.xz
 OBS_OUTPUT ?= $(CURDIR)/obs-sources
 SPEC=$(RPM_NAME).spec
 PREFIX ?= /usr/local
-APPSTREAMFILE=in.yashjawale.cockpit_cron.metainfo.xml
+APPSTREAMFILE=in.yashjawale.cockpit-cron.metainfo.xml
 VM_IMAGE=$(CURDIR)/test/images/$(TEST_OS)
 # stamp file to check for node_modules/
 NODE_MODULES_TEST=package-lock.json
@@ -105,9 +105,9 @@ packaging/arch/PKGBUILD: packaging/arch/PKGBUILD.in
 	sed 's/VERSION/$(VERSION)/; s/SOURCE/$(TARFILE)/' $< > $@
 
 # Debian packaging: assemble the debian/ directory from packaging/debian/ at
-# dist time, baking the current version into the changelog like for the RPM
-# spec. The release tarball therefore carries a ready-to-build Debian source
-# tree (dpkg-buildpackage can be run straight from the extracted tarball).
+# dist time. The release tarball carries a Debian packaging tree for binary
+# builds; OBS/PPA source-package helpers add the orig tarball and Debian
+# revision required by source format 3.0 (quilt).
 DEB_DIR=debian
 
 $(DEB_DIR)/changelog: packaging/debian/changelog.in FORCE
@@ -177,6 +177,7 @@ $(TARFILE): $(DIST_TEST) po/LINGUAS $(SPEC) packaging/arch/PKGBUILD $(DEB_DIR)/r
 	if type appstream-util >/dev/null 2>&1; then appstream-util validate-relax --nonet *.metainfo.xml; fi
 	tar --xz $(TAR_ARGS) -cf $(TARFILE) --transform 's,^,$(RPM_NAME)/,' \
 		--exclude packaging/$(SPEC).in --exclude node_modules \
+		--exclude='*/__pycache__' --exclude='*.pyc' \
 		$$(git ls-files) $(COCKPIT_REPO_FILES) $(NODE_MODULES_TEST) $(DIST_TEST) \
 		$(SPEC) packaging/arch/PKGBUILD $(DEB_DIR) dist/ $(PO_CATALOGS) po/LINGUAS
 
@@ -186,18 +187,18 @@ $(NODE_CACHE): $(NODE_MODULES_TEST)
 node-cache: $(NODE_CACHE)
 
 # Assemble RPM and Debian source descriptions for an OBS upload.
-obs-sources: $(TARFILE) $(NODE_CACHE)
+obs-sources: $(TARFILE)
 	packaging/obs/prepare-sources "$(TARFILE)" "$(OBS_OUTPUT)"
 
 # convenience target for developers
-srpm: $(TARFILE) $(NODE_CACHE) $(SPEC)
+srpm: $(TARFILE) $(SPEC)
 	rpmbuild -bs \
 	  --define "_sourcedir `pwd`" \
 	  --define "_srcrpmdir `pwd`" \
 	  $(SPEC)
 
 # convenience target for developers
-rpm: $(TARFILE) $(NODE_CACHE) $(SPEC)
+rpm: $(TARFILE) $(SPEC)
 	mkdir -p "`pwd`/output"
 	mkdir -p "`pwd`/rpmbuild"
 	rpmbuild -bb \

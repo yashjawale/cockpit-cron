@@ -10,7 +10,7 @@
     </p>
   </description>
   <extends>org.cockpit_project.cockpit</extends>
-  <launchable type="cockpit-manifest">cockpit-cron</launchable>
+  <launchable type="cockpit-manifest">cron</launchable>
   <url type="homepage">https://github.com/yashjawale/cockpit-cron</url>
   <url type="bugtracker">https://github.com/yashjawale/cockpit-cron/issues</url>
   <update_contact>connect_AT_yashjawale.in</update_contact>

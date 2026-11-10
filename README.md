@@ -16,7 +16,15 @@ A simple [Cockpit](https://cockpit-project.org/) plugin for making it easier to 
 
 # Installation
 
-> TODO: After figuring out distribution channel to use. Currently binaries & tar is available from GitHub releases.
+Prebuilt packages are attached to each [GitHub release](https://github.com/yashjawale/cockpit-cron/releases):
+
+- **Debian/Ubuntu:** `sudo apt install ./cockpit-cron_*_all.deb`
+- **Fedora/RPM:** `sudo dnf install ./cockpit-cron-*.noarch.rpm`
+- **Arch Linux:** `sudo pacman -U ./cockpit-cron-bin-*.pkg.tar.zst`
+
+These install the Cockpit module and its runtime dependencies. Fedora/COPR,
+Ubuntu/PPA, and configured OBS repositories are also available; see the
+distribution documents under [`docs/`](docs/).
 
 # Development dependencies
 
@@ -58,7 +66,7 @@ this manually:
 
 ```
 mkdir -p ~/.local/share/cockpit
-ln -s `pwd`/dist ~/.local/share/cockpit/cockpit-cron
+ln -s `pwd`/dist ~/.local/share/cockpit/cron
 ```
 
 After changing the code and running `make` again, reload the Cockpit page in
@@ -89,7 +97,7 @@ set to upload code changes to `~/.local/share/cockpit/` instead of
 To "uninstall" the locally installed version, run `make devel-uninstall`, or
 remove manually the symlink:
 
-    rm ~/.local/share/cockpit/cockpit-cron
+    rm ~/.local/share/cockpit/cron
 
 # Running eslint
 

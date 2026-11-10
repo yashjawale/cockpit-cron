@@ -12,6 +12,7 @@ Architecture: all
 Multi-Arch: foreign
 Depends: ${misc:Depends},
          cockpit-bridge,
+         cron,
 Description: Cockpit module for managing cron jobs
  A simple Cockpit module for managing cron jobs: add, edit and delete jobs,
  enable or disable them, and give them human readable labels.

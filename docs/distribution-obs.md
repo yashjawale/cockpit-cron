@@ -9,7 +9,7 @@ official openSUSE distribution. See the [release workflow](../.github/workflows/
 ## Chosen architecture
 
 Use a **tag-triggered GitHub Actions job** depending on the existing `source`
-job. It downloads exactly that job's two `.tar.xz` artifacts, assembles RPM
+job. It downloads that job's release tarball, assembles RPM
 and Debian source build descriptions from the release tarball, and uploads
 those files plus an OBS `.changes` entry to `home:yashjawale/cockpit-cron` using
 `osc`. The workflow runs as a dry run on `workflow_dispatch`; only a pushed
@@ -51,21 +51,22 @@ the *previous* version, not publish the new one.
    before creating/pushing a real release tag. OBS publishing supports numeric
    Cockpit-style tags such as `27` and dotted versions such as `0.1.0`.
 
-## Agent implementation checklist
+## Implementation status and remaining verification
 
 - [x] Add an OBS job with `needs: source` to `.github/workflows/release.yml`.
       Manual runs only assemble and validate the upload files; the job also
       explicitly requires a tag-push event before using credentials. Use the
       release artifact produced in the **same workflow run**, not a mutable
       GitHub branch or `latest` release URL. Derive version from the tag and
-      verify generated spec `%{version}` and both source filenames match it.
+      verify the generated spec version and release archive filename match it.
 - [x] Use `make obs-sources` on the release tarball. It obtains
       the generated RPM spec from inside the tarball and creates a Debian
       source package (`.dsc`, `.orig.tar.xz`, and
       `.debian.tar.xz`), adding Debian revision `-1` to the generated upstream
       version as required by format `3.0 (quilt)`. The spec template contains
-      placeholders and must not be uploaded directly. Upload both RPM source archives with exact matching
-      filenames; keep all companion Debian source files together.
+      placeholders and must not be uploaded directly. The spec consumes the
+      prebuilt UI bundle from the release archive, so no separate Node cache is
+      needed for OBS. Keep all companion Debian source files together.
 - [x] Generate an idempotent OBS `.changes` entry from the tag release notes;
       preserve prior OBS history. New entries derive from the GitHub tag's
       release notes; repeated runs for the same tag don't add duplicates.
@@ -100,8 +101,10 @@ is a build success signal.
 
 ## Verification and operations
 
-1. On a dry run inspect the prepared spec, archive filenames and changes file;
-   verify OBS remains untouched.
+1. On a dry run inspect the prepared spec, archive filenames, and Debian source
+   descriptions; verify OBS remains untouched. The dry-run artifact does not
+   include `cockpit-cron.changes`, which is updated against the current OBS
+   package history during the authenticated tag-upload step.
 2. Push a real version tag. Check that the OBS package's source revision
    changed to that version, inspect each repository/architecture build log and
    ensure the package appears in a **published** OBS download repository.
