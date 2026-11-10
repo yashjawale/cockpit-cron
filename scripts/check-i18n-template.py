@@ -11,7 +11,7 @@ def main():
     assert re.search(r'#: .*src/manifest\.json:\d+.*\nmsgid "Cron jobs"', pot)
     assert re.search(r'#: .*src/components/LevelSwitcher\.tsx:\d+.*\nmsgid "Cron job level"', pot)
     assert re.search(
-        r'#: .*in\.yashjawale\.cockpit_cron\.metainfo\.xml:\d+.*\n'
+        r'#: .*in\.yashjawale\.cockpit-cron\.metainfo\.xml:\d+.*\n'
         r'msgid "Cockpit plugin for managing cron jobs"', pot)
     assert re.search(
         r'msgid "\$0 cron job is not managed by this plugin"\s+'
