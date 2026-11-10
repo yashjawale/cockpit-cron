@@ -148,6 +148,148 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # Upload the exact source artifacts from this run to OBS. workflow_dispatch
+  # runs only assemble and publish a review artifact; only a pushed version tag
+  # may write to OBS.
+  obs:
+    runs-on: ubuntu-latest
+    needs: source
+    permissions:
+      contents: read
+    env:
+      OBS_PROJECT: home:yashjawale
+      OBS_PACKAGE: cockpit-cron
+    steps:
+      - name: Checkout the release source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Download source artifacts from this run
+        uses: actions/download-artifact@v8
+        with:
+          name: release-assets
+          path: release-assets
+
+      - name: Install OBS upload tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y osc dpkg-dev xz-utils
+
+      - name: Prepare and validate OBS sources
+        run: |
+          set -euo pipefail
+          mapfile -t releases < <(find release-assets -maxdepth 1 -type f -name 'cockpit-cron-[0-9]*.tar.xz' -print)
+          [[ ${#releases[@]} -eq 1 ]] || {
+            echo "Expected exactly one versioned source tarball; found ${#releases[@]}" >&2
+            exit 1
+          }
+          release="${releases[0]}"
+          filename=$(basename "$release")
+          [[ "$filename" =~ ^cockpit-cron-([0-9][A-Za-z0-9.+~]*[0-9A-Za-z])\.tar\.xz$ ]] || {
+            echo "Unexpected release source filename: $filename" >&2
+            exit 1
+          }
+          version="${BASH_REMATCH[1]}"
+          if [[ "${GITHUB_EVENT_NAME}" == push ]]; then
+            [[ "${GITHUB_REF_NAME}" =~ ^[0-9]+(\.[0-9]+)*$ ]] || {
+              echo "OBS publishing requires a numeric release tag (for example 27 or 1.2.3)" >&2
+              exit 1
+            }
+            [[ "${GITHUB_REF_NAME}" == "$version" ]] || {
+              echo "Tag ${GITHUB_REF_NAME} does not match archive version ${version}" >&2
+              exit 1
+            }
+          fi
+          mkdir -p "${RUNNER_TEMP}/obs-sources"
+          packaging/obs/prepare-sources "$release" "${RUNNER_TEMP}/obs-sources"
+          grep -Fxq "Version: ${version}" "${RUNNER_TEMP}/obs-sources/cockpit-cron.spec"
+          test -f "${RUNNER_TEMP}/obs-sources/cockpit-cron-node-${version}.tar.xz"
+          test -f "${RUNNER_TEMP}/obs-sources/cockpit-cron_${version}-1.dsc"
+          test -f "${RUNNER_TEMP}/obs-sources/cockpit-cron_${version}-1.debian.tar.xz"
+          test -f "${RUNNER_TEMP}/obs-sources/cockpit-cron_${version}.orig.tar.xz"
+          ls -lh "${RUNNER_TEMP}/obs-sources"
+
+      - name: Save dry-run sources for review
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: obs-sources-dry-run
+          path: ${{ runner.temp }}/obs-sources/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload release sources to OBS
+        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+        env:
+          OBS_USER: ${{ secrets.OBS_USER }}
+          OBS_PASSWORD: ${{ secrets.OBS_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${OBS_USER:?Add OBS_USER as a GitHub Actions secret}"
+          : "${OBS_PASSWORD:?Add OBS_PASSWORD as a GitHub Actions secret}"
+
+          config_dir=$(mktemp -d "${RUNNER_TEMP}/osc-config.XXXXXX")
+          trap 'rm -rf "$config_dir"' EXIT
+          export OSC_CONFIG="$config_dir/oscrc"
+          python3 - <<'PY'
+          import configparser
+          import os
+
+          api = "https://api.opensuse.org"
+          config = configparser.ConfigParser(interpolation=None)
+          config["general"] = {"apiurl": api}
+          config[api] = {"user": os.environ["OBS_USER"], "pass": os.environ["OBS_PASSWORD"]}
+          with open(os.environ["OSC_CONFIG"], "w", encoding="utf-8") as stream:
+              config.write(stream)
+          os.chmod(os.environ["OSC_CONFIG"], 0o600)
+          PY
+
+          osc_cmd() { osc --config "$OSC_CONFIG" "$@"; }
+          cd "$RUNNER_TEMP"
+          osc_cmd checkout "$OBS_PROJECT" "$OBS_PACKAGE"
+          package_dir="$RUNNER_TEMP/$OBS_PROJECT/$OBS_PACKAGE"
+          cd "$package_dir"
+
+          # Replace only artifacts produced by this release helper; leave
+          # unrelated maintainer files and history untouched.
+          declare -A keep=()
+          for file in "${RUNNER_TEMP}/obs-sources"/*; do
+            keep["$(basename "$file")"]=1
+          done
+          for file in \
+            cockpit-cron-[0-9]*.tar.xz \
+            cockpit-cron-node-[0-9]*.tar.xz \
+            cockpit-cron_[0-9]*.dsc \
+            cockpit-cron_[0-9]*.orig.tar.xz \
+            cockpit-cron_[0-9]*.debian.tar.xz; do
+            [[ -f "$file" ]] || continue
+            if [[ -n "${keep[$file]:-}" ]]; then
+              continue
+            fi
+            osc_cmd delete "$file"
+          done
+
+          cp -f "${RUNNER_TEMP}/obs-sources/"* .
+          git tag -l --format='%(contents:body)' "${GITHUB_REF_NAME}" > "$RUNNER_TEMP/release-notes.txt"
+          python3 "$GITHUB_WORKSPACE/packaging/obs/update-changes.py" \
+            --file cockpit-cron.changes \
+            --tag "${GITHUB_REF_NAME}" \
+            --notes "$RUNNER_TEMP/release-notes.txt"
+
+          status=$(osc_cmd status)
+          while read -r state file; do
+            [[ "$state" == '?' ]] && osc_cmd add "$file"
+          done <<< "$status"
+          status=$(osc_cmd status)
+          if [[ -z "$status" ]]; then
+            echo "OBS already contains this release; nothing to commit."
+            exit 0
+          fi
+          printf '%s\n' "$status"
+          osc_cmd commit -m "Update to ${GITHUB_REF_NAME}"
+
   # Upload signed source packages to the shared Launchpad PPA. Launchpad builds
   # the binary packages for each Ubuntu series; this job only runs for tags.
   ppa:
@@ -181,7 +323,10 @@ jobs:
           PPA_SIGNING_PASSPHRASE: ${{ secrets.PPA_SIGNING_PASSPHRASE }}
         run: |
           set -euo pipefail
-          [[ "${GITHUB_REF_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "${GITHUB_REF_NAME}" =~ ^[0-9]+(\.[0-9]+)*$ ]] || {
+            echo "PPA publishing requires a numeric release tag (for example 27 or 1.2.3)" >&2
+            exit 1
+          }
           : "${PPA_SIGNING_KEY_ASC:?Set PPA_SIGNING_KEY_ASC in repository Actions secrets}"
           : "${PPA_SIGNING_FINGERPRINT:?Set PPA_SIGNING_FINGERPRINT in repository Actions secrets}"
           : "${PPA_SIGNING_PASSPHRASE:?Set PPA_SIGNING_PASSPHRASE in repository Actions secrets}"

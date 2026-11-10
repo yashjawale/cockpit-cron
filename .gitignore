@@ -27,6 +27,7 @@
 /package-lock.json
 /pkg/
 /node_modules/
+/obs-sources/
 /runtime-npm-modules.txt
 /tmp/
 /tools/

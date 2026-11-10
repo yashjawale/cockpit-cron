@@ -4,12 +4,14 @@ PACKAGE_NAME := $(shell awk '/"name":/ {gsub(/[",]/, "", $$2); print $$2}' packa
 WEB_DIR := cron
 RPM_NAME := $(if $(filter cockpit-%,$(PACKAGE_NAME)),$(PACKAGE_NAME),cockpit-$(PACKAGE_NAME))
 VERSION := $(shell T=$$(git describe 2>/dev/null) || T=1; echo $$T | tr '-' '.')
+CHANGELOG_DATE := $(shell git show --no-patch --format='%cD' 2>/dev/null || date -R)
 ifeq ($(TEST_OS),)
 TEST_OS = centos-9-stream
 endif
 export TEST_OS
 TARFILE=$(RPM_NAME)-$(VERSION).tar.xz
 NODE_CACHE=$(RPM_NAME)-node-$(VERSION).tar.xz
+OBS_OUTPUT ?= $(CURDIR)/obs-sources
 SPEC=$(RPM_NAME).spec
 PREFIX ?= /usr/local
 APPSTREAMFILE=in.yashjawale.cockpit_cron.metainfo.xml
@@ -108,9 +110,10 @@ packaging/arch/PKGBUILD: packaging/arch/PKGBUILD.in
 # tree (dpkg-buildpackage can be run straight from the extracted tarball).
 DEB_DIR=debian
 
-$(DEB_DIR)/changelog: packaging/debian/changelog.in
+$(DEB_DIR)/changelog: packaging/debian/changelog.in FORCE
 	mkdir -p $(DEB_DIR)
-	sed 's/%{VERSION}/$(VERSION)/; s/%{DATE}/$(shell date -R)/' $< > $@
+	sed 's/%{VERSION}/$(VERSION)/; s/%{DATE}/$(CHANGELOG_DATE)/' $< > $@.tmp
+	@if ! cmp -s $@.tmp $@; then mv $@.tmp $@; else rm $@.tmp; fi
 
 $(DEB_DIR)/rules: packaging/debian/rules packaging/debian/control packaging/debian/copyright packaging/debian/source/format packaging/debian/watch packaging/debian/upstream/metadata $(DEB_DIR)/changelog
 	mkdir -p $(DEB_DIR)/source $(DEB_DIR)/upstream
@@ -141,9 +144,13 @@ endif
 	mkdir -p $(DESTDIR)$(PREFIX)/share/cockpit/$(WEB_DIR)
 	cp -r dist/* $(DESTDIR)$(PREFIX)/share/cockpit/$(WEB_DIR)
 	mkdir -p $(DESTDIR)$(PREFIX)/share/metainfo/
-	msgfmt --xml -d po \
-		--template $(APPSTREAMFILE) \
-		-o $(DESTDIR)$(PREFIX)/share/metainfo/$(APPSTREAMFILE)
+	@if msgfmt --help 2>&1 | grep -q -- '--xml'; then \
+		msgfmt --xml -d po \
+			--template $(APPSTREAMFILE) \
+			-o $(DESTDIR)$(PREFIX)/share/metainfo/$(APPSTREAMFILE); \
+	else \
+		cp $(APPSTREAMFILE) $(DESTDIR)$(PREFIX)/share/metainfo/$(APPSTREAMFILE); \
+	fi
 
 # this requires a built source tree and avoids having to install anything system-wide
 devel-install: $(DIST_TEST)
@@ -177,6 +184,10 @@ $(NODE_CACHE): $(NODE_MODULES_TEST)
 	tools/node-modules runtime-tar $(NODE_CACHE)
 
 node-cache: $(NODE_CACHE)
+
+# Assemble RPM and Debian source descriptions for an OBS upload.
+obs-sources: $(TARFILE) $(NODE_CACHE)
+	packaging/obs/prepare-sources "$(TARFILE)" "$(OBS_OUTPUT)"
 
 # convenience target for developers
 srpm: $(TARFILE) $(NODE_CACHE) $(SPEC)
@@ -240,4 +251,6 @@ $(NODE_MODULES_TEST): package.json
 	for _ in `seq 3`; do timeout 10m env -u NODE_ENV npm install --ignore-scripts && exit 0; done; exit 1
 	env -u NODE_ENV npm prune
 
-.PHONY: all clean install devel-install devel-uninstall print-version dist node-cache rpm prepare-check check vm print-vm
+.PHONY: all clean install devel-install devel-uninstall print-version dist node-cache obs-sources rpm prepare-check check vm print-vm FORCE
+
+FORCE:
