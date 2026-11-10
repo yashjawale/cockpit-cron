@@ -217,6 +217,12 @@ publishes those asynchronously. A manual run only assembles an OBS dry-run
 artifact. See [OBS release setup](docs/distribution-obs.md) for the required
 GitHub secrets and repository instructions.
 
+After merging changes to `main`, `scripts/release-tag 1` guides you through
+writing the annotated tag's release notes and asks before pushing. Use the next
+unused version number for each release. The workflow uses the annotated tag
+message body as the GitHub release notes; it does not use GitHub's generated
+release-notes feature.
+
 The Fedora and COPR releases are done with [Packit](https://packit.dev/),
 see the [packit.yaml](./packit.yaml) control file.
 
