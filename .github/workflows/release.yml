@@ -331,7 +331,7 @@ jobs:
       - name: Install packaging and upload tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y devscripts dpkg-dev dput gettext debhelper xz-utils
+          sudo apt-get install -y build-essential devscripts dpkg-dev dput gettext debhelper xz-utils
 
       - name: Download release source artifact
         uses: actions/download-artifact@v8
