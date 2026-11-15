@@ -224,3 +224,9 @@
     white-space: pre-wrap;
     font-family: var(--pf-t--global--font--family--mono);
 }
+
+@media (prefers-color-scheme: light) {
+    .cron-log-output {
+        background-color: var(--pf-t--global--background--color--300);
+    }
+}
