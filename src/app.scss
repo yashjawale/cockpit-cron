@@ -5,6 +5,12 @@
     margin-bottom: 0;
 }
 
+@media (width <= 768px) {
+    .cron-jobs-toolbar .pf-v6-c-toolbar__content-section > .pf-v6-c-toolbar__item:first-child {
+        margin-block-end: var(--pf-t--global--spacer--md);
+    }
+}
+
 .cron-jobs-toolbar-section {
     padding-block-end: 0;
 }
