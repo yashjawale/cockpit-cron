@@ -126,6 +126,11 @@
     color: var(--pf-t--global--icon--color--on-brand--default);
 }
 
+.cron-job-run-spinner {
+    display: block;
+    flex: 0 0 auto;
+}
+
 .cron-job-disabled {
     opacity: 0.5;
 }

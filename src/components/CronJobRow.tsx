@@ -18,6 +18,7 @@ import {
 } from "@patternfly/react-core/dist/esm/components/DataList";
 import { MenuToggle } from "@patternfly/react-core/dist/esm/components/MenuToggle";
 import { Switch } from "@patternfly/react-core/dist/esm/components/Switch";
+import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner";
 import { EllipsisVIcon } from '@patternfly/react-icons/dist/esm/icons/ellipsis-v-icon';
 import { ListIcon } from '@patternfly/react-icons/dist/esm/icons/list-icon';
 import { PlayIcon } from '@patternfly/react-icons/dist/esm/icons/play-icon';
@@ -154,7 +155,9 @@ export const CronJobRow = ({ level, job, onEdit, onDelete, onToggleLogging, onPr
                                 onRunNow(job).finally(() => setRunning(false));
                             }}
                         >
-                            <PlayIcon />
+                            {running
+                                ? <Spinner diameter="1rem" className="cron-job-run-spinner" aria-label={_("Running job")} />
+                                : <PlayIcon />}
                         </MenuToggle>
                     )}
                     {job.logFile !== undefined && (
