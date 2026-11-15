@@ -10,6 +10,7 @@
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         gap: var(--pf-t--global--spacer--md);
+        padding-inline: var(--pf-t--global--spacer--md);
     }
 
     .cron-jobs-toolbar .pf-v6-c-toolbar__content-section > .pf-v6-c-toolbar__group {
