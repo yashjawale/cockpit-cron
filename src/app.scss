@@ -185,6 +185,11 @@
         grid-template-columns: minmax(0, 1fr);
     }
 
+    .cron-jobs-list-section .pf-v6-c-data-list__expandable-content {
+        max-height: none;
+        overflow-y: visible;
+    }
+
     .cron-log-calendar .pf-v6-c-calendar-month {
         box-sizing: border-box;
         width: 100%;
