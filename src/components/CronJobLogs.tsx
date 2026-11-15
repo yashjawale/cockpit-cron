@@ -182,7 +182,11 @@ export const CronJobLogs = ({ level, job, refresh }: CronJobLogsProps) => {
                             <MenuContent>
                                 <MenuList>
                                     {selectedDayRuns.map(run => (
-                                        <MenuItem key={run.id} itemId={run.id} className={run.manual ? "cron-log-manual-item" : undefined}>
+                                        <MenuItem
+                                            key={run.id}
+                                            itemId={run.id}
+                                            {...(run.manual ? { className: "cron-log-manual-item" } : {})}
+                                        >
                                             <span className={run.manual ? "cron-log-manual-run" : undefined}>
                                                 {formatRunTime(run.timestamp)}
                                                 {run.manual && (
