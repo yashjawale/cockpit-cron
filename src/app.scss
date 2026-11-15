@@ -59,10 +59,36 @@
 /* the logs and kebab buttons are right aligned with a constant width, so
    that the schedule cell lines up across rows with and without logging */
 .cron-job-actions {
-    min-width: 5rem;
+    min-width: 7rem;
     display: flex;
     justify-content: flex-end;
     gap: 0.25rem;
+}
+
+.cron-log-manual-run {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+}
+
+.cron-log-manual-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.cron-log-manual-check {
+    color: var(--pf-t--global--icon--color--brand--default);
+}
+
+.cron-log-runs .cron-log-manual-item {
+    border-radius: var(--pf-t--global--border--radius--small, 0.25rem);
+}
+
+.cron-log-runs .cron-log-manual-item .pf-v6-c-menu__item-select-icon {
+    display: none;
 }
 
 /* the logs button gets a blue background while its viewer is expanded */

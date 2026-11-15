@@ -540,6 +540,8 @@ export interface CronRun {
     timestamp: string;
     /** the raw output the run produced */
     output: string;
+    /** whether this run was started manually from the UI */
+    manual?: boolean;
 }
 
 /**
@@ -835,12 +837,28 @@ export async function pruneCronJobLog(level: CronLevel, job: CronJob): Promise<v
 }
 
 /**
+ * Run a logged job immediately and append its output to the same run log.
+ * This intentionally uses the original command, not the cron wrapper.
+ */
+export async function runCronJobNow(level: CronLevel, job: CronJob): Promise<void> {
+    if (job.logFile === undefined)
+        throw new Error("job logging must be enabled to run a job manually");
+
+    const command = displayCommand(job.command);
+    const marker = 'echo "=== manual run $(date -Iseconds) ==="';
+    // A non-zero job status is still a completed run with useful output, not a
+    // failure to start the run; retain it in the log without rejecting.
+    await cockpit.spawn(["/bin/sh", "-c", `${marker} >> ${job.logFile}; /bin/sh -c '${escapeSh(command)}' >> ${job.logFile} 2>&1 || true`], logSpawnOptions(level));
+}
+
+/**
  * A marker line written by the wrapped command at the start of each run, e.g.
  * "=== run 2026-08-09T10:00:00+00:00 ===". The timestamp is matched strictly
  * so that output of the logged command that merely resembles a marker, like
  * "=== run completed ===", is not mistaken for a new run.
  */
 const RUN_MARKER_RE = /^=== run (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}) ===$/;
+const MANUAL_RUN_MARKER_RE = /^=== manual run (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}) ===$/;
 
 /**
  * Parse the contents of a cron job's log file into individual runs.
@@ -856,12 +874,13 @@ export function parseCronLog(content: string): CronRun[] {
     let current: CronRun | null = null;
 
     content.split("\n").forEach((line, index) => {
-        const match = line.match(RUN_MARKER_RE);
+        const match = line.match(RUN_MARKER_RE) ?? line.match(MANUAL_RUN_MARKER_RE);
         if (match) {
             current = {
                 id: `run-${index}`,
                 timestamp: match[1],
-                output: ""
+                output: "",
+                ...(MANUAL_RUN_MARKER_RE.test(line) ? { manual: true } : {})
             };
             runs.push(current);
         } else if (current) {

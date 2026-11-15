@@ -9,6 +9,8 @@ import { Alert } from "@patternfly/react-core/dist/esm/components/Alert";
 import { CalendarMonth } from "@patternfly/react-core/dist/esm/components/CalendarMonth";
 import { EmptyState, EmptyStateBody } from "@patternfly/react-core/dist/esm/components/EmptyState";
 import { Menu, MenuContent, MenuItem, MenuList } from "@patternfly/react-core/dist/esm/components/Menu";
+import { Badge } from "@patternfly/react-core/dist/esm/components/Badge";
+import { CheckIcon } from '@patternfly/react-icons/dist/esm/icons/check-icon';
 
 import cockpit from 'cockpit';
 
@@ -180,8 +182,16 @@ export const CronJobLogs = ({ level, job, refresh }: CronJobLogsProps) => {
                             <MenuContent>
                                 <MenuList>
                                     {selectedDayRuns.map(run => (
-                                        <MenuItem key={run.id} itemId={run.id}>
-                                            {formatRunTime(run.timestamp)}
+                                        <MenuItem key={run.id} itemId={run.id} className={run.manual ? "cron-log-manual-item" : undefined}>
+                                            <span className={run.manual ? "cron-log-manual-run" : undefined}>
+                                                {formatRunTime(run.timestamp)}
+                                                {run.manual && (
+                                                    <span className="cron-log-manual-meta">
+                                                        {selected?.id === run.id && <CheckIcon className="cron-log-manual-check" />}
+                                                        <Badge isRead>{_("Manual")}</Badge>
+                                                    </span>
+                                                )}
+                                            </span>
                                         </MenuItem>
                                     ))}
                                 </MenuList>

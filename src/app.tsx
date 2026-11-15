@@ -67,6 +67,7 @@ export const Application = () => {
                     onEdit={setEditJob}
                     onDelete={setDeleteJob}
                     onPruneLogs={setPruneJob}
+                    onRunCompleted={() => setLogRefresh(current => current + 1)}
                     onToggleLogging={(job, enabled) => setLoggingJob({ job, enabled })}
                     onSkip={setSkipJob}
                 />

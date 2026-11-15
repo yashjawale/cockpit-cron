@@ -1500,6 +1500,35 @@ class TestApplication(testlib.MachineCase):
         m.execute("su admin -c 'crontab -r' || true")
         m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
 
+    def testRunNow(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cron")
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 printf 'manual output'"])
+        b.reload()
+        b.enter_page("/cron")
+        b.wait_visible("#app")
+        b.click("#cron-level-user")
+        self.enable_logging()
+
+        b.wait_visible(".cron-job-run-toggle")
+        b.click(".cron-job-run-toggle")
+        b.wait(lambda: "manual output" in m.execute(
+            "grep -R 'manual output' /home/admin/.cache/cockpit-cron"))
+        b.click(".cron-job-logs-toggle")
+        b.wait_visible(".cron-log-viewer")
+        b.wait_visible(".cron-log-manual-meta .pf-v6-c-badge")
+        b.wait_in_text(".cron-log-output", "manual output")
+
+        # The manually started entry is clearly distinguished in run history.
+        self.assertIn("Manual", b.text(".cron-log-manual-meta"))
+
+        m.execute("su admin -c 'crontab -r' || true")
+        m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
+
     def testDisableLogging(self):
         b = self.browser
         m = self.machine
@@ -1911,4 +1940,3 @@ class TestApplication(testlib.MachineCase):
 
 if __name__ == '__main__':
     testlib.test_main()
-
