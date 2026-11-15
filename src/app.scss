@@ -184,6 +184,27 @@
     .cron-log-viewer {
         grid-template-columns: minmax(0, 1fr);
     }
+
+    .cron-log-calendar .pf-v6-c-calendar-month {
+        box-sizing: border-box;
+        width: 100%;
+        margin-inline: auto;
+        padding-inline: 0;
+    }
+
+    .cron-log-calendar .pf-v6-c-calendar-month__header,
+    .cron-log-calendar .pf-v6-c-calendar-month__calendar {
+        width: 100%;
+    }
+
+    .cron-log-runs-column,
+    .cron-log-runs {
+        max-height: 20rem;
+    }
+
+    .cron-log-runs .pf-v6-c-menu__content {
+        max-height: 20rem;
+    }
 }
 
 /* a dot marking days with recorded runs */
