@@ -23,16 +23,7 @@ jobs:
     trigger: pull_request
     # Pin the targets instead of fedora-all, and add new releases once they are
     # supported by COPR/Packit.
-    targets: &test_targets
-      - fedora-43
-      - fedora-44
-      - fedora-44-aarch64
-      - fedora-45
-      - fedora-45-aarch64
-      - fedora-rawhide
-      - centos-stream-9
-      - centos-stream-9-aarch64
-      - centos-stream-10
+    targets: [fedora-stable]
 
   - job: copr_build
     trigger: pull_request
