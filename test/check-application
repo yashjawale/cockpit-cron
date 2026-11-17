@@ -1507,7 +1507,7 @@ class TestApplication(testlib.MachineCase):
         self.login_and_go("/cron")
         m.execute("su admin -c 'crontab -r' || true")
         m.execute("rm -rf /home/admin/.cache/cockpit-cron || true")
-        self.seed_managed_crontab("user", lines=["0 4 * * 1 printf 'manual output'"])
+        self.seed_managed_crontab("user", lines=["0 4 * * 1 echo manual-output"])
         b.reload()
         b.enter_page("/cron")
         b.wait_visible("#app")
@@ -1516,12 +1516,12 @@ class TestApplication(testlib.MachineCase):
 
         b.wait_visible(".cron-job-run-toggle")
         b.click(".cron-job-run-toggle")
-        b.wait(lambda: "manual output" in m.execute(
-            "grep -R 'manual output' /home/admin/.cache/cockpit-cron"))
+        b.wait(lambda: "manual-output" in m.execute(
+            "grep -R manual-output /home/admin/.cache/cockpit-cron"))
         b.click(".cron-job-logs-toggle")
         b.wait_visible(".cron-log-viewer")
         b.wait_visible(".cron-log-manual-meta .pf-v6-c-badge")
-        b.wait_in_text(".cron-log-output", "manual output")
+        b.wait_in_text(".cron-log-output", "manual-output")
 
         # The manually started entry is clearly distinguished in run history.
         self.assertIn("Manual", b.text(".cron-log-manual-meta"))
