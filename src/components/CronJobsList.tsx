@@ -11,7 +11,7 @@ import { EmptyState, EmptyStateBody } from "@patternfly/react-core/dist/esm/comp
 
 import cockpit from 'cockpit';
 
-import { readCronJobs, setCronJobEnabled, setCronJobSkipUntil, displayCommand, type CronJob, type CronLevel } from "../cron";
+import { readCronJobs, runCronJobNow, setCronJobEnabled, setCronJobSkipUntil, displayCommand, type CronJob, type CronLevel } from "../cron";
 import { CronJobRow } from "./CronJobRow";
 
 const _ = cockpit.gettext;
@@ -46,6 +46,8 @@ export interface CronJobsListProps {
     onToggleLogging: (job: CronJob, enabled: boolean) => void;
     /** callback invoked when the user wants to prune a job's logs */
     onPruneLogs: (job: CronJob) => void;
+    /** callback invoked after a manual run completes */
+    onRunCompleted: () => void;
     /** callback invoked when the user wants to skip a job until a date */
     onSkip: (job: CronJob) => void;
 }
@@ -56,7 +58,7 @@ export interface CronJobsListProps {
  * The jobs are read from the system whenever the level changes and rendered
  * as rows with a loading and an empty state.
  */
-export const CronJobsList = ({ level, filter, reload, logRefresh, highlight, onEdit, onDelete, onToggleLogging, onPruneLogs, onSkip }: CronJobsListProps) => {
+export const CronJobsList = ({ level, filter, reload, logRefresh, highlight, onEdit, onDelete, onToggleLogging, onPruneLogs, onRunCompleted, onSkip }: CronJobsListProps) => {
     const [jobs, setJobs] = useState<CronJob[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -169,6 +171,14 @@ export const CronJobsList = ({ level, filter, reload, logRefresh, highlight, onE
                                     onDelete={onDelete}
                                     onToggleLogging={onToggleLogging}
                                     onPruneLogs={onPruneLogs}
+                                    onRunNow={async job => {
+                                        try {
+                                            await runCronJobNow(level, job);
+                                            onRunCompleted();
+                                        } catch (error) {
+                                            console.warn("Failed to run cron job:", error);
+                                        }
+                                    }}
                                     logRefresh={logRefresh}
                                     onSkip={onSkip}
                                     onToggleEnabled={toggleEnabled}

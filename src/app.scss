@@ -5,6 +5,35 @@
     margin-bottom: 0;
 }
 
+@media (width <= 768px) {
+    .cron-jobs-toolbar .pf-v6-c-toolbar__content-section {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: var(--pf-t--global--spacer--md);
+        padding-inline: var(--pf-t--global--spacer--md);
+    }
+
+    .cron-jobs-toolbar .pf-v6-c-toolbar__content-section > .pf-v6-c-toolbar__group {
+        display: contents;
+    }
+
+    .cron-jobs-toolbar .pf-v6-c-toolbar__content-section > .pf-v6-c-toolbar__item:first-child {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .cron-jobs-toolbar .pf-v6-c-text-input-group {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        width: 100%;
+    }
+
+    .cron-jobs-toolbar .pf-v6-c-toggle-group {
+        grid-column: 2;
+        grid-row: 1;
+    }
+}
+
 .cron-jobs-toolbar-section {
     padding-block-end: 0;
 }
@@ -59,16 +88,47 @@
 /* the logs and kebab buttons are right aligned with a constant width, so
    that the schedule cell lines up across rows with and without logging */
 .cron-job-actions {
-    min-width: 5rem;
+    min-width: 7rem;
     display: flex;
     justify-content: flex-end;
     gap: 0.25rem;
+}
+
+.cron-log-manual-run {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+}
+
+.cron-log-manual-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.cron-log-manual-check {
+    color: var(--pf-t--global--icon--color--brand--default);
+}
+
+.cron-log-runs .cron-log-manual-item {
+    border-radius: var(--pf-t--global--border--radius--small, 0.25rem);
+}
+
+.cron-log-runs .cron-log-manual-item .pf-v6-c-menu__item-select-icon {
+    display: none;
 }
 
 /* the logs button gets a blue background while its viewer is expanded */
 .cron-job-logs-toggle-expanded {
     background-color: var(--pf-t--global--color--brand--default);
     color: var(--pf-t--global--icon--color--on-brand--default);
+}
+
+.cron-job-run-spinner {
+    display: block;
+    flex: 0 0 auto;
 }
 
 .cron-job-disabled {
@@ -124,6 +184,32 @@
     .cron-log-viewer {
         grid-template-columns: minmax(0, 1fr);
     }
+
+    .cron-jobs-list-section .pf-v6-c-data-list__expandable-content {
+        max-height: none;
+        overflow-y: visible;
+    }
+
+    .cron-log-calendar .pf-v6-c-calendar-month {
+        box-sizing: border-box;
+        width: 100%;
+        margin-inline: auto;
+        padding-inline: 0;
+    }
+
+    .cron-log-calendar .pf-v6-c-calendar-month__header,
+    .cron-log-calendar .pf-v6-c-calendar-month__calendar {
+        width: 100%;
+    }
+
+    .cron-log-runs-column,
+    .cron-log-runs {
+        max-height: 20rem;
+    }
+
+    .cron-log-runs .pf-v6-c-menu__content {
+        max-height: 20rem;
+    }
 }
 
 /* a dot marking days with recorded runs */
@@ -152,14 +238,28 @@
     max-height: 100%;
 }
 
+@media (prefers-color-scheme: light) {
+    .cron-log-runs {
+        background-color: var(--pf-t--global--background--color--secondary--default);
+    }
+}
+
 .cron-log-output {
     flex: 1;
     min-height: 0;
     margin: 0;
     padding: 0.75rem;
+    border-radius: calc(var(--pf-t--global--border--radius--small) + var(--pf-t--global--spacer--xs));
     background: var(--pf-t--global--background--color--secondary--default);
     border: var(--pf-t--global--border--width--100) solid var(--pf-t--global--border--color--default);
     overflow: auto;
     white-space: pre-wrap;
     font-family: var(--pf-t--global--font--family--mono);
+}
+
+@media (prefers-color-scheme: light) {
+    .cron-log-output {
+        color: var(--pf-t--global--text--color--inverse);
+        background-color: var(--pf-t--global--background--color--inverse--default);
+    }
 }

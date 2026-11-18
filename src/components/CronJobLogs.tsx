@@ -4,11 +4,13 @@
  * Copyright (C) 2024 Red Hat, Inc.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Alert } from "@patternfly/react-core/dist/esm/components/Alert";
 import { CalendarMonth } from "@patternfly/react-core/dist/esm/components/CalendarMonth";
 import { EmptyState, EmptyStateBody } from "@patternfly/react-core/dist/esm/components/EmptyState";
 import { Menu, MenuContent, MenuItem, MenuList } from "@patternfly/react-core/dist/esm/components/Menu";
+import { Badge } from "@patternfly/react-core/dist/esm/components/Badge";
+import { CheckIcon } from '@patternfly/react-icons/dist/esm/icons/check-icon';
 
 import cockpit from 'cockpit';
 
@@ -60,7 +62,7 @@ export const CronJobLogs = ({ level, job, refresh }: CronJobLogsProps) => {
 
     // only the three column layout uses the calendar height, the medium and
     // small layouts stack the columns and scroll with their own max heights
-    useEffect(() => {
+    useLayoutEffect(() => {
         const media = window.matchMedia("(max-width: 1100px)");
         const update = () => setIsStacked(media.matches);
         update();
@@ -70,7 +72,7 @@ export const CronJobLogs = ({ level, job, refresh }: CronJobLogsProps) => {
 
     // size the viewer to the calendar so that the runs and log columns scroll
     // within the same height as the calendar
-    useEffect(() => {
+    useLayoutEffect(() => {
         const element = calendarRef.current;
         if (!element || isStacked)
             return;
@@ -180,8 +182,20 @@ export const CronJobLogs = ({ level, job, refresh }: CronJobLogsProps) => {
                             <MenuContent>
                                 <MenuList>
                                     {selectedDayRuns.map(run => (
-                                        <MenuItem key={run.id} itemId={run.id}>
-                                            {formatRunTime(run.timestamp)}
+                                        <MenuItem
+                                            key={run.id}
+                                            itemId={run.id}
+                                            {...(run.manual ? { className: "cron-log-manual-item" } : {})}
+                                        >
+                                            <span className={run.manual ? "cron-log-manual-run" : undefined}>
+                                                {formatRunTime(run.timestamp)}
+                                                {run.manual && (
+                                                    <span className="cron-log-manual-meta">
+                                                        {selected?.id === run.id && <CheckIcon className="cron-log-manual-check" />}
+                                                        <Badge isRead>{_("Manual")}</Badge>
+                                                    </span>
+                                                )}
+                                            </span>
                                         </MenuItem>
                                     ))}
                                 </MenuList>

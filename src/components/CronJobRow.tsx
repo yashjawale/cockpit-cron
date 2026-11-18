@@ -18,8 +18,10 @@ import {
 } from "@patternfly/react-core/dist/esm/components/DataList";
 import { MenuToggle } from "@patternfly/react-core/dist/esm/components/MenuToggle";
 import { Switch } from "@patternfly/react-core/dist/esm/components/Switch";
+import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner";
 import { EllipsisVIcon } from '@patternfly/react-icons/dist/esm/icons/ellipsis-v-icon';
 import { ListIcon } from '@patternfly/react-icons/dist/esm/icons/list-icon';
+import { PlayIcon } from '@patternfly/react-icons/dist/esm/icons/play-icon';
 
 import cockpit from 'cockpit';
 
@@ -52,6 +54,8 @@ export interface CronJobRowProps {
     onToggleLogging: (job: CronJob, enabled: boolean) => void;
     /** callback invoked when the user wants to prune the job's logs */
     onPruneLogs: (job: CronJob) => void;
+    /** callback invoked when the user wants to run the job immediately */
+    onRunNow: (job: CronJob) => Promise<void>;
     /** a counter that triggers a reload of the expanded logs when incremented */
     logRefresh: number;
     /** callback invoked when the user wants to skip the job until a date */
@@ -72,11 +76,12 @@ export interface CronJobRowProps {
  * carries a label below the title that shows until when it is paused, and a
  * logged job shows a logs button that expands the row into a run log viewer.
  */
-export const CronJobRow = ({ level, job, onEdit, onDelete, onToggleLogging, onPruneLogs, logRefresh, onSkip, onToggleEnabled, highlight, highlightTick }: CronJobRowProps) => {
+export const CronJobRow = ({ level, job, onEdit, onDelete, onToggleLogging, onPruneLogs, onRunNow, logRefresh, onSkip, onToggleEnabled, highlight, highlightTick }: CronJobRowProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
     const [flash, setFlash] = useState(false);
     const [highlightActive, setHighlightActive] = useState(false);
+    const [running, setRunning] = useState(false);
 
     // highlight the row briefly after the enabled state changes
     useEffect(() => {
@@ -138,6 +143,23 @@ export const CronJobRow = ({ level, job, onEdit, onDelete, onToggleLogging, onPr
                     aria-labelledby={domId}
                     aria-label={_("Job actions")}
                 >
+                    {job.logFile !== undefined && (
+                        <MenuToggle
+                            id={`${domId}-run`}
+                            className="cron-job-run-toggle"
+                            variant="plain"
+                            aria-label={_("Run now")}
+                            isDisabled={running}
+                            onClick={() => {
+                                setRunning(true);
+                                onRunNow(job).finally(() => setRunning(false));
+                            }}
+                        >
+                            {running
+                                ? <Spinner diameter="1rem" className="cron-job-run-spinner" aria-label={_("Running job")} />
+                                : <PlayIcon />}
+                        </MenuToggle>
+                    )}
                     {job.logFile !== undefined && (
                         <MenuToggle
                             id={`${domId}-logs`}
