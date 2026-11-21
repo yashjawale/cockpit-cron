@@ -4,7 +4,7 @@ A simple [Cockpit](https://cockpit-project.org/) plugin for making it easier to 
 
 [![Latest release](https://img.shields.io/github/v/release/yashjawale/cockpit-cron)](https://github.com/yashjawale/cockpit-cron/releases/latest)
 [![Code checks](https://github.com/yashjawale/cockpit-cron/actions/workflows/codecheck.yml/badge.svg)](https://github.com/yashjawale/cockpit-cron/actions/workflows/codecheck.yml)
-[![Integration tests](https://img.shields.io/github/check-runs/yashjawale/cockpit-cron/main?nameFilter=testing-farm%3Afedora-45-x86_64&label=integration%20tests)](https://github.com/yashjawale/cockpit-cron/actions)
+[![Integration tests](https://img.shields.io/github/check-runs/yashjawale/cockpit-cron/main?nameFilter=testing-farm%3Amain%3Afedora-45-x86_64&label=integration%20tests)](https://github.com/yashjawale/cockpit-cron/actions)
 [![COPR build status](https://copr.fedorainfracloud.org/coprs/yash/cockpit-plugins/package/cockpit-cron/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/yash/cockpit-plugins/package/cockpit-cron/)
 [![Ubuntu PPA](https://img.shields.io/badge/Ubuntu-PPA-E95420?logo=ubuntu&logoColor=white)](https://launchpad.net/~yashjawale/+archive/ubuntu/cockpit-plugins)
 [![OBS build result](https://build.opensuse.org/projects/home:yashjawale/packages/cockpit-cron/badge.svg?type=default)](https://build.opensuse.org/package/show/home:yashjawale/cockpit-cron)
