@@ -1,0 +1,50 @@
+name: Bug report
+description: Report a problem with Cockpit Cron
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Please check for an existing issue first. Do not include passwords, tokens, or other sensitive information.
+  - type: input
+    id: version
+    attributes:
+      label: Cockpit Cron version
+      description: Include the version and how you installed it, if known.
+      placeholder: "e.g. 1.2.3, Fedora COPR"
+    validations:
+      required: false
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system/version, browser, Cockpit version, and cron implementation.
+      placeholder: "e.g. Fedora 45, Firefox, Cockpit 3xx, cronie"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the steps that reproduce the issue.
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include relevant logs or screenshots, with sensitive information removed.
+      placeholder: What happened instead?
+    validations:
+      required: true
