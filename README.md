@@ -64,6 +64,16 @@ and install it with:
 sudo pacman -U ./cockpit-cron-bin-*.pkg.tar.zst
 ```
 
+Alternatively, build from source:
+
+```sh
+sudo pacman -S --needed git base-devel gettext nodejs npm
+git clone https://github.com/yashjawale/cockpit-cron.git
+cd cockpit-cron
+make dist
+makepkg -si -p packaging/arch/PKGBUILD
+```
+
 > It is planned to release a package on aur too but currently waiting for the new account registration block to lift on aur.
 
 ## Manual binary installation (GitHub Releases)
