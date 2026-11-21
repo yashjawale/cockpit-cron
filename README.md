@@ -157,10 +157,11 @@ Rules configuration can be found in the `.stylelintrc.json` file.
 Translations are currently maintained in `po/`. To regenerate the translation
 template after changing translatable strings, run `make po/cockpit-cron.pot`.
 
-I plan to make translations available through [Weblate](https://weblate.org/),
-but its Libre Gratis plan requires some community activity. I can't apply until
-the plugin has users beyond just me. Until then, translation updates can be
-submitted as gettext PO files; see [Contributing](CONTRIBUTING.md#translations).
+> I plan to make translations available through [Weblate](https://weblate.org/),
+> but its Libre Gratis plan requires some community activity. I can't apply
+> until the plugin has users beyond just me. Until then, translation updates
+> can be submitted as gettext PO files; see
+> [Contributing](CONTRIBUTING.md#translations).
 
 # Running tests locally
 
