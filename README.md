@@ -2,6 +2,13 @@
 
 A simple [Cockpit](https://cockpit-project.org/) plugin for making it easier to manage cron jobs.
 
+[![Latest release](https://img.shields.io/github/v/release/yashjawale/cockpit-cron)](https://github.com/yashjawale/cockpit-cron/releases/latest)
+[![Code checks](https://github.com/yashjawale/cockpit-cron/actions/workflows/codecheck.yml/badge.svg)](https://github.com/yashjawale/cockpit-cron/actions/workflows/codecheck.yml)
+[![Integration tests](https://img.shields.io/github/check-runs/yashjawale/cockpit-cron/main?nameFilter=testing-farm%3Afedora-45-x86_64&label=integration%20tests)](https://github.com/yashjawale/cockpit-cron/actions)
+[![COPR build status](https://copr.fedorainfracloud.org/coprs/yash/cockpit-plugins/package/cockpit-cron/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/yash/cockpit-plugins/package/cockpit-cron/)
+[![Ubuntu PPA](https://img.shields.io/badge/Ubuntu-PPA-E95420?logo=ubuntu&logoColor=white)](https://launchpad.net/~yashjawale/+archive/ubuntu/cockpit-plugins)
+[![OBS build result](https://build.opensuse.org/projects/home:yashjawale/packages/cockpit-cron/badge.svg?type=default)](https://build.opensuse.org/package/show/home:yashjawale/cockpit-cron)
+
 ![Cockpit Cron plugin screenshot](./screenshots/cockpit-cron.png)
 
 # Features
@@ -16,15 +23,25 @@ A simple [Cockpit](https://cockpit-project.org/) plugin for making it easier to 
 
 # Installation
 
-Prebuilt packages are attached to each [GitHub release](https://github.com/yashjawale/cockpit-cron/releases):
+Prebuilt packages for Debian/Ubuntu, Fedora/RPM, and Arch Linux are attached to
+each [GitHub release](https://github.com/yashjawale/cockpit-cron/releases):
 
 - **Debian/Ubuntu:** `sudo apt install ./cockpit-cron_*_all.deb`
 - **Fedora/RPM:** `sudo dnf install ./cockpit-cron-*.noarch.rpm`
 - **Arch Linux:** `sudo pacman -U ./cockpit-cron-bin-*.pkg.tar.zst`
 
-These install the Cockpit module and its runtime dependencies. Fedora/COPR,
-Ubuntu/PPA, and configured OBS repositories are also available; see the
-distribution documents under [`docs/`](docs/).
+Repository installation is also available through [Fedora COPR](docs/distribution-copr.md)
+and the [Ubuntu PPA](docs/distribution-ppa.md). Packages are published to
+[OBS](docs/distribution-obs.md) for configured distributions. The Arch package
+is available from GitHub releases; AUR publication is not yet available (see
+[the AUR status](docs/distribution-aur.md)). Packages install the Cockpit
+module and its runtime dependencies.
+
+> Not available for your distro or want another packaging format? Feel free to
+> [create an issue](https://github.com/yashjawale/cockpit-cron/issues/new/choose).
+
+For development, testing, translations, or submitting a change, see
+[Contributing](CONTRIBUTING.md).
 
 # Development dependencies
 
@@ -139,7 +156,10 @@ Rules configuration can be found in the `.stylelintrc.json` file.
 
 The translations for the plugin will be handled via [Weblate](https://weblate.org/).
 
-We're currently in the process of setting up the hosted service via Weblate's Libre Gratis Plan. Once its active, contributors can directly translate strings on Weblate.
+We're currently in the process of setting up the hosted service via Weblate's
+Libre Gratis Plan. Once active, contributors can directly translate strings
+on Weblate. Until then, translation contributions can be made with gettext PO
+files; see [Contributing](CONTRIBUTING.md#translations).
 
 # Running tests locally
 
