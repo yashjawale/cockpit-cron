@@ -160,7 +160,7 @@ template after changing translatable strings, run `make po/cockpit-cron.pot`.
 
 > I plan to make translations available through [Weblate](https://weblate.org/),
 > but its Libre Gratis plan requires some community activity. I can't apply
-> until the plugin has users beyond just me. Until then, translation updates
+> until the plugin has users beyond just me : ). Until then, translation updates
 > can be submitted as gettext PO files; see
 > [Contributing](CONTRIBUTING.md#translations).
 
