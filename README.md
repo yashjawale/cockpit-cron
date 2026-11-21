@@ -5,9 +5,9 @@ A simple [Cockpit](https://cockpit-project.org/) plugin for making it easier to 
 [![Latest release](https://img.shields.io/github/v/release/yashjawale/cockpit-cron)](https://github.com/yashjawale/cockpit-cron/releases/latest)
 [![Code checks](https://github.com/yashjawale/cockpit-cron/actions/workflows/codecheck.yml/badge.svg)](https://github.com/yashjawale/cockpit-cron/actions/workflows/codecheck.yml)
 [![Integration tests](https://img.shields.io/github/check-runs/yashjawale/cockpit-cron/main?nameFilter=testing-farm%3Amain%3Afedora-45-x86_64&label=integration%20tests)](https://github.com/yashjawale/cockpit-cron/actions)
-[![COPR build status](https://copr.fedorainfracloud.org/coprs/yash/cockpit-plugins/package/cockpit-cron/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/yash/cockpit-plugins/package/cockpit-cron/)
+[![Copr build status](https://copr.fedorainfracloud.org/coprs/yash/cockpit-plugins/package/cockpit-cron/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/yash/cockpit-plugins/package/cockpit-cron/)
 [![Ubuntu PPA](https://img.shields.io/badge/Ubuntu-PPA-E95420?logo=ubuntu&logoColor=white)](https://launchpad.net/~yashjawale/+archive/ubuntu/cockpit-plugins)
-[![OBS build result](https://build.opensuse.org/projects/home:yashjawale/packages/cockpit-cron/badge.svg?type=default)](https://build.opensuse.org/package/show/home:yashjawale/cockpit-cron)
+[![build result](https://build.opensuse.org/projects/home:yashjawale/packages/cockpit-cron/badge.svg?type=default)](https://build.opensuse.org/package/show/home:yashjawale/cockpit-cron)
 
 ![Cockpit Cron plugin screenshot](./screenshots/cockpit-cron.png)
 
@@ -23,239 +23,107 @@ A simple [Cockpit](https://cockpit-project.org/) plugin for making it easier to 
 
 # Installation
 
-Prebuilt packages for Debian/Ubuntu, Fedora/RPM, and Arch Linux are attached to
-each [GitHub release](https://github.com/yashjawale/cockpit-cron/releases):
+Cockpit Cron is available from the following package sources. Install Cockpit
+on your system first; the package manager will install it as a dependency where
+applicable.
 
-- **Debian/Ubuntu:** `sudo apt install ./cockpit-cron_*_all.deb`
-- **Fedora/RPM:** `sudo dnf install ./cockpit-cron-*.noarch.rpm`
-- **Arch Linux:** `sudo pacman -U ./cockpit-cron-bin-*.pkg.tar.zst`
+## Fedora and CentOS Stream (COPR)
 
-Repository installation is also available through [Fedora COPR](docs/distribution-copr.md)
-and the [Ubuntu PPA](docs/distribution-ppa.md). Packages are published to
-[OBS](docs/distribution-obs.md) for configured distributions. The Arch package
-is available from GitHub releases. Packages install the Cockpit module and its
-runtime dependencies.
+Enable the [cockpit-plugins COPR repository](https://copr.fedorainfracloud.org/coprs/yash/cockpit-plugins/)
+and install the package:
 
-> AUR publication is not yet available (see [the AUR status](docs/distribution-aur.md)).
-
-> Not available for your distro or want another packaging format? Feel free to
-> [create an issue](https://github.com/yashjawale/cockpit-cron/issues/new/choose).
-
-For development, testing, translations, or submitting a change, see
-[Contributing](CONTRIBUTING.md).
-
-# Development dependencies
-
-On Debian/Ubuntu:
-
-    sudo apt install gettext nodejs npm make
-
-On Fedora:
-
-    sudo dnf install gettext nodejs npm make
-
-On openSUSE Tumbleweed and Leap:
-
-    sudo zypper in gettext-runtime nodejs npm make
-
-# Getting and building the source
-
-These commands check out the source and build it into the `dist/` directory:
-
+```sh
+sudo dnf copr enable yash/cockpit-plugins
+sudo dnf install cockpit-cron
 ```
+
+## Debian, openSUSE, and other distributions via OpenBuildService repository
+
+Use the [OBS download page](https://software.opensuse.org/download.html?project=home%3Ayashjawale&package=cockpit-cron)
+to select your distribution and follow its repository setup instructions. Then
+install `cockpit-cron` with your distribution's package manager.
+
+## Ubuntu (PPA)
+
+Add the [cockpit-plugins PPA](https://launchpad.net/~yashjawale/+archive/ubuntu/cockpit-plugins)
+and install the package:
+
+```sh
+sudo add-apt-repository ppa:yashjawale/cockpit-plugins
+sudo apt update
+sudo apt install cockpit-cron
+```
+
+## Arch
+
+Download the prebuilt Arch package from
+[GitHub Releases](https://github.com/yashjawale/cockpit-cron/releases/latest)
+and install it with:
+
+```sh
+sudo pacman -U ./cockpit-cron-bin-*.pkg.tar.zst
+```
+
+> It is planned to release a package on aur too but currently waiting for the new account registration block to lift on aur.
+
+## Manual binary installation (GitHub Releases)
+
+Download the package for your distribution from
+[GitHub Releases](https://github.com/yashjawale/cockpit-cron/releases/latest).
+Releases include Debian `.deb` and RPM `.rpm` packages, as well as the source
+tarball. Install a downloaded package using your system package manager, for
+example:
+
+```sh
+sudo apt install ./cockpit-cron_*_all.deb
+```
+
+```sh
+sudo dnf install ./cockpit-cron-*.noarch.rpm
+```
+
+> Not available for your distro or want another packaging format? Feel free to create an issue!
+
+## Development
+
+Install the build dependencies (`gettext`, Node.js, npm, and make; package names
+may vary by distribution), then build:
+
+```sh
 git clone https://github.com/yashjawale/cockpit-cron.git
 cd cockpit-cron
 make
 ```
 
-# Installing
+### Translations
 
-`make install` compiles and installs the package in `/usr/local/share/cockpit/`. The
-convenience targets `srpm` and `rpm` build the source and binary rpms,
-respectively. Both of these make use of the `dist` target, which is used
-to generate the distribution tarball. In `production` mode, source files are
-automatically minified and compressed. Set `NODE_ENV=production` if you want to
-duplicate this behavior.
+Currently translations are maintained in `po/`. To regenerate the translation template
+after changing translatable strings, run `make po/cockpit-cron.pot`.
 
-For development, you usually want to run your module straight out of the git
-tree. To do that, run `make devel-install`, which links your checkout to the
-location were cockpit-bridge looks for packages. If you prefer to do
-this manually:
+> Translations are planned to be made available to contributors via Weblate. But since their Libre Gratis plan needs the package to have a bit of community activity. I can't post an application till the plugin gets a bit of users other than just me : )
 
+### Tests
+
+Run static checks and the browser integration test with:
+
+```sh
+make codecheck
+TEST_BROWSER=firefox make check
 ```
+
+### Local install
+
+For development, build the project and link the bundle into Cockpit's user
+package directory:
+
+```sh
 mkdir -p ~/.local/share/cockpit
-ln -s `pwd`/dist ~/.local/share/cockpit/cron
+ln -s "$(pwd)/dist" ~/.local/share/cockpit/cron
 ```
 
-After changing the code and running `make` again, reload the Cockpit page in
-your browser.
-
-You can also use
-[watch mode](https://esbuild.github.io/api/#watch) to
-automatically update the bundle on every code change with
-
-    ./build.js -w
-
-or
-
-    make watch
-
-When developing against a virtual machine, watch mode can also automatically upload
-the code changes by setting the `RSYNC` environment variable to
-the remote hostname.
-
-    RSYNC=c make watch
-
-When developing against a remote host as a normal user, `RSYNC_DEVEL` can be
-set to upload code changes to `~/.local/share/cockpit/` instead of
-`/usr/local`.
-
-    RSYNC_DEVEL=example.com make watch
-
-To "uninstall" the locally installed version, run `make devel-uninstall`, or
-remove manually the symlink:
-
-    rm ~/.local/share/cockpit/cron
-
-# Running eslint
-
-Cockpit Cron uses [ESLint](https://eslint.org/) to automatically check
-JavaScript/TypeScript code style in `.js[x]` and `.ts[x]` files.
-
-eslint is executed as part of `test/static-code`, aka. `make codecheck`.
-
-For developer convenience, the ESLint can be started explicitly by:
-
-    npm run eslint
-
-Violations of some rules can be fixed automatically by:
-
-    npm run eslint:fix
-
-Rules configuration can be found in the `.eslintrc.json` file.
-
-## Running stylelint
-
-Cockpit uses [Stylelint](https://stylelint.io/) to automatically check CSS code
-style in `.css` and `scss` files.
-
-styleint is executed as part of `test/static-code`, aka. `make codecheck`.
-
-For developer convenience, the Stylelint can be started explicitly by:
-
-    npm run stylelint
-
-Violations of some rules can be fixed automatically by:
-
-    npm run stylelint:fix
-
-Rules configuration can be found in the `.stylelintrc.json` file.
-
-# Translation
-
-> Not yet available.
-
-Translations are currently maintained in `po/`. To regenerate the translation
-template after changing translatable strings, run `make po/cockpit-cron.pot`.
-
-> I plan to make translations available through [Weblate](https://weblate.org/),
-> but its Libre Gratis plan requires some community activity. I can't apply
-> until the plugin has users beyond just me : ). Until then, translation updates
-> can be submitted as gettext PO files; see
-> [Contributing](CONTRIBUTING.md#translations).
-
-# Running tests locally
-
-Run `make check` to build an RPM, install it into a standard Cockpit test VM
-(centos-9-stream by default), and run the test/check-application integration test on
-it. This uses Cockpit's Chrome DevTools Protocol based browser tests, through a
-Python API abstraction. Note that this API is not guaranteed to be stable, so
-if you run into failures and don't want to adjust tests, consider checking out
-Cockpit's test/common from a tag instead of main (see the `test/common`
-target in `Makefile`).
-
-After the test VM is prepared, you can manually run the test without rebuilding
-the VM, possibly with extra options for tracing and halting on test failures
-(for interactive debugging):
-
-    TEST_OS=centos-9-stream test/check-application -tvs
-
-It is possible to setup the test environment without running the tests:
-
-    TEST_OS=centos-9-stream make prepare-check
-
-You can also run the test against a different Cockpit image, for example:
-
-    TEST_OS=fedora-40 make check
-
-# Running tests in CI
-
-These tests can be run in [Cirrus CI](https://cirrus-ci.org/), on their free
-[Linux Containers](https://cirrus-ci.org/guide/linux/) environment which
-explicitly supports `/dev/kvm`. Please see [Quick
-Start](https://cirrus-ci.org/guide/quick-start/) how to set up Cirrus CI for
-your project after forking from cockpit-cron.
-
-The [.cirrus.yml.disabled](./.cirrus.yml.disabled) file runs the integration
-tests for two operating systems (Fedora and CentOS Stream). It is disabled by
-default; to use it, rename it to `.cirrus.yml` and set up Cirrus CI as
-described in the [Quick Start](https://cirrus-ci.org/guide/quick-start/). Note
-that if/once your project grows bigger, or gets frequent changes, you may need
-to move to a paid account, or different infrastructure with more capacity.
-
-Tests also run in [Packit](https://packit.dev/) for all currently supported
-Fedora releases; see the [packit.yaml](./packit.yaml) control file. You need to
-[enable Packit-as-a-service](https://packit.dev/docs/packit-service/) in your GitHub project to use this.
-To run the tests in the exact same way for upstream pull requests and for
-[Fedora package update gating](https://docs.fedoraproject.org/en-US/ci/), the
-tests are wrapped in the [FMF metadata format](https://github.com/teemtee/fmf)
-for using with the [tmt test management tool](https://docs.fedoraproject.org/en-US/ci/tmt/).
-Note that Packit tests can *not* run their own virtual machine images, thus
-they only run [@nondestructive tests](https://github.com/cockpit-project/cockpit/blob/main/test/common/testlib.py).
-
-# Automated release
-
-Once your cloned project is ready for a release, you should consider automating
-that. The intention is that the only manual step for releasing a project is to create
-a signed tag for the version number, which includes a summary of the noteworthy
-changes:
-
-```
-123
-
-- this new feature
-- fix bug #123
-```
-
-Pushing an annotated numeric version tag (for example `1`, `2`, `3`, or
-`1.2.3`) triggers the
-[release.yml](.github/workflows/release.yml)
-[GitHub action](https://github.com/features/actions) workflow. It builds the
-source tarball and Debian and RPM packages first, then creates the GitHub
-release and attaches all artifacts only if every build succeeds. A manual run
-(Actions → release → Run workflow) builds and retains the artifacts for
-inspection, but never publishes a release. Pushing a version tag also uploads
-the RPM and Debian source descriptions to the OBS project; OBS builds and
-publishes those asynchronously. A manual run only assembles an OBS dry-run
-artifact. See [OBS release setup](docs/distribution-obs.md) for the required
-GitHub secrets and repository instructions.
-
-After merging changes to `main`, `scripts/release-tag 1` guides you through
-writing the annotated tag message and asks before pushing. Use the next unused
-version number for each release. The tag message is used for the OBS changelog;
-GitHub generates the GitHub release notes from the repository's release history
-and merged pull requests.
-
-The Fedora and COPR releases are done with [Packit](https://packit.dev/),
-see the [packit.yaml](./packit.yaml) control file.
-
-# Automated maintenance
-
-It is important to keep your [NPM modules](./package.json) up to date, to keep
-up with security updates and bug fixes. This happens with
-[dependabot](https://github.com/dependabot),
-see [configuration file](.github/dependabot.yml).
-
+Alternatively, use `make devel-install`. After rebuilding with `make`, reload
+Cockpit in your browser. Remove the development link with
+`rm ~/.local/share/cockpit/cron` or `make devel-uninstall`.
 
 ---
 
