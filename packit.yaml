@@ -38,6 +38,20 @@ jobs:
     trigger: pull_request
     targets: *test_targets
 
+  # Run single-target test and build jobs on main for stable status badges.
+  # Pull requests retain the full target matrix above.
+  - job: copr_build
+    trigger: commit
+    branch: main$
+    targets:
+      - fedora-45
+
+  - job: tests
+    trigger: commit
+    branch: main$
+    targets:
+      - fedora-45
+
   # Build published releases in the persistent Copr project. Keep these
   # targets aligned with the project's enabled chroots and the PR COPR job.
   - job: copr_build
