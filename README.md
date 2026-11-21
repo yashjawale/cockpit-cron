@@ -33,9 +33,10 @@ each [GitHub release](https://github.com/yashjawale/cockpit-cron/releases):
 Repository installation is also available through [Fedora COPR](docs/distribution-copr.md)
 and the [Ubuntu PPA](docs/distribution-ppa.md). Packages are published to
 [OBS](docs/distribution-obs.md) for configured distributions. The Arch package
-is available from GitHub releases; AUR publication is not yet available (see
-[the AUR status](docs/distribution-aur.md)). Packages install the Cockpit
-module and its runtime dependencies.
+is available from GitHub releases. Packages install the Cockpit module and its
+runtime dependencies.
+
+> AUR publication is not yet available (see [the AUR status](docs/distribution-aur.md)).
 
 > Not available for your distro or want another packaging format? Feel free to
 > [create an issue](https://github.com/yashjawale/cockpit-cron/issues/new/choose).
