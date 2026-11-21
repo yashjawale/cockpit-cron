@@ -110,7 +110,7 @@ make
 Currently translations are maintained in `po/`. To regenerate the translation template
 after changing translatable strings, run `make po/cockpit-cron.pot`.
 
-> Translations are planned to be made available to contributors via Weblate. But since their Libre Gratis plan needs the package to have a bit of community activity. I can't post an application till the plugin gets a bit of users other than just me : )
+> Translations are planned to be made available to contributors via Weblate. But since their Libre Gratis plan needs the package to have a bit of community activity. Can't post an application till the plugin gets a bit of users other than just me : )
 
 ### Tests
 
