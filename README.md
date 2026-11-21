@@ -154,12 +154,12 @@ Rules configuration can be found in the `.stylelintrc.json` file.
 
 > Not yet available.
 
-The translations for the plugin will be handled via [Weblate](https://weblate.org/).
+I plan to handle translations for the plugin via [Weblate](https://weblate.org/).
 
-We're currently in the process of setting up the hosted service via Weblate's
-Libre Gratis Plan. Once active, contributors can directly translate strings
-on Weblate. Until then, translation contributions can be made with gettext PO
-files; see [Contributing](CONTRIBUTING.md#translations).
+I'm currently setting up the hosted service through Weblate's Libre Gratis
+Plan. Once it's active, contributors can translate strings directly on
+Weblate. Until then, translation updates can be submitted as gettext PO files;
+see [Contributing](CONTRIBUTING.md#translations).
 
 # Running tests locally
 
